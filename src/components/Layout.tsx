@@ -16,11 +16,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
     return (
         <div className="flex flex-col h-screen bg-black text-white">
-            <main className="flex-1 overflow-y-auto pb-20 p-4">
+            <main className="flex-1 overflow-y-auto p-4" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
                 {children}
             </main>
 
-            <nav className="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 pb-safe">
+            <nav className="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
                 <div className="flex justify-around items-center h-16">
                     {navItems.map((item) => {
                         const isActive = location.pathname === item.path;
