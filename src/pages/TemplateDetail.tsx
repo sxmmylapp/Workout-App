@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type WorkoutTemplate } from '../db';
+import { db } from '../db';
 import { ChevronLeft, Edit2, Trash2, Copy } from 'lucide-react';
 import { TemplateEditor } from '../components/TemplateEditor';
 

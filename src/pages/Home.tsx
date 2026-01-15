@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Play, ChevronRight, CalendarDays, FileText, LayoutTemplate } from 'lucide-react';
+import { Plus, Play, CalendarDays, FileText, LayoutTemplate } from 'lucide-react';
 import { db, type ScheduledWorkout } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { format, startOfDay } from 'date-fns';
