@@ -335,7 +335,7 @@ export const Settings: React.FC = () => {
                     <h3 className="font-bold text-lg">App Info</h3>
                 </div>
                 <div className="space-y-1 text-sm text-zinc-400">
-                    <p><span className="text-zinc-500">Version:</span> 1.0.0</p>
+                    <p><span className="text-zinc-500">Version:</span> 1.0.1</p>
                     <p><span className="text-zinc-500">Build:</span> 2026-01-16</p>
                 </div>
             </div>
