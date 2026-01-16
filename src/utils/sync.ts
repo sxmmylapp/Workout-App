@@ -487,15 +487,36 @@ export const syncTemplatesToSupabase = async (): Promise<{ synced: number; faile
 
     for (const template of templates) {
         try {
-            const { error } = await supabase.from('templates').upsert({
-                local_id: String(template.id),
-                user_id: user.id,
-                name: template.name,
-                exercises: template.exercises,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'local_id' });
+            // Check if template already exists in cloud
+            const { data: existing } = await supabase
+                .from('templates')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('local_id', String(template.id))
+                .single();
 
-            if (error) throw error;
+            if (existing) {
+                // Update existing
+                const { error } = await supabase
+                    .from('templates')
+                    .update({
+                        name: template.name,
+                        exercises: template.exercises,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', existing.id);
+                if (error) throw error;
+            } else {
+                // Insert new
+                const { error } = await supabase.from('templates').insert({
+                    local_id: String(template.id),
+                    user_id: user.id,
+                    name: template.name,
+                    exercises: template.exercises,
+                    updated_at: new Date().toISOString()
+                });
+                if (error) throw error;
+            }
             synced++;
         } catch (e) {
             console.error('Template sync error:', e);
@@ -514,7 +535,12 @@ export const fetchTemplatesFromSupabase = async (): Promise<void> => {
     if (!supabase) return;
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+        console.log('No user for template fetch');
+        return;
+    }
+
+    console.log('Fetching templates from cloud for user:', user.id);
 
     const { data, error } = await supabase
         .from('templates')
@@ -527,14 +553,20 @@ export const fetchTemplatesFromSupabase = async (): Promise<void> => {
         return;
     }
 
-    if (!data) return;
+    console.log('Fetched templates from cloud:', data?.length || 0);
 
-    // Merge with local - add any cloud templates not present locally
+    if (!data || data.length === 0) return;
+
+    // Get local templates for comparison
+    const localTemplates = await db.templates.toArray();
+    const localNames = new Set(localTemplates.map(t => t.name.toLowerCase()));
+
+    // Merge with local - add cloud templates not present locally (by name)
     for (const cloudTemplate of data) {
-        const exists = await db.templates.get(Number(cloudTemplate.local_id));
-        if (!exists) {
+        // Check if template with same name already exists locally
+        if (!localNames.has(cloudTemplate.name.toLowerCase())) {
+            console.log('Adding cloud template locally:', cloudTemplate.name);
             await db.templates.add({
-                id: Number(cloudTemplate.local_id),
                 name: cloudTemplate.name,
                 exercises: cloudTemplate.exercises as { exerciseId: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[],
                 createdAt: new Date(cloudTemplate.created_at)
@@ -573,17 +605,38 @@ export const syncScheduledWorkoutsToSupabase = async (): Promise<{ synced: numbe
 
     for (const workout of scheduled) {
         try {
-            const { error } = await supabase.from('scheduled_workouts').upsert({
-                local_id: String(workout.id),
-                user_id: user.id,
-                template_name: workout.templateName,
-                date: workout.date,
-                notes: workout.notes,
-                exercises: workout.exercises,
-                completed: workout.completed || false
-            }, { onConflict: 'local_id' });
+            // Check if exists in cloud
+            const { data: existing } = await supabase
+                .from('scheduled_workouts')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('local_id', String(workout.id))
+                .single();
 
-            if (error) throw error;
+            if (existing) {
+                const { error } = await supabase
+                    .from('scheduled_workouts')
+                    .update({
+                        template_name: workout.templateName,
+                        date: workout.date,
+                        notes: workout.notes,
+                        exercises: workout.exercises,
+                        completed: workout.completed || false
+                    })
+                    .eq('id', existing.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('scheduled_workouts').insert({
+                    local_id: String(workout.id),
+                    user_id: user.id,
+                    template_name: workout.templateName,
+                    date: workout.date,
+                    notes: workout.notes,
+                    exercises: workout.exercises,
+                    completed: workout.completed || false
+                });
+                if (error) throw error;
+            }
             synced++;
         } catch (e) {
             console.error('Scheduled workout sync error:', e);
