@@ -97,12 +97,22 @@ const ListEditor: React.FC<ListEditorProps> = ({ title, items, onSave, defaultIt
 
     const handleAdd = () => {
         const trimmed = newItem.trim();
-        if (trimmed && !localItems.includes(trimmed)) {
-            const updated = [...localItems, trimmed];
-            setLocalItems(updated);
-            onSave(updated);
-            setNewItem('');
+        if (!trimmed) return;
+
+        // Case-insensitive duplicate check
+        const isDuplicate = localItems.some(
+            item => item.toLowerCase() === trimmed.toLowerCase()
+        );
+
+        if (isDuplicate) {
+            alert(`"${trimmed}" already exists.`);
+            return;
         }
+
+        const updated = [...localItems, trimmed];
+        setLocalItems(updated);
+        onSave(updated);
+        setNewItem('');
     };
 
     const handleRemove = (item: string) => {
