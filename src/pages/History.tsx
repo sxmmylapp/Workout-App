@@ -133,15 +133,13 @@ export const History: React.FC = () => {
         <div className="space-y-4">
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold">History</h1>
-                {hasSupabase && (
-                    <button
-                        onClick={loadFromCloud}
-                        disabled={loading}
-                        className="text-green-400 p-2 hover:bg-zinc-800 rounded-full"
-                    >
-                        <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
-                    </button>
-                )}
+                <button
+                    onClick={loadFromCloud}
+                    disabled={loading}
+                    className="text-green-400 p-2 hover:bg-zinc-800 rounded-full"
+                >
+                    <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+                </button>
             </div>
 
             {loading && (
@@ -155,11 +153,6 @@ export const History: React.FC = () => {
             {!loading && combinedWorkouts.length === 0 && (
                 <div className="text-center py-8 space-y-2">
                     <p className="text-zinc-500">No workouts yet.</p>
-                    {!hasSupabase && (
-                        <p className="text-zinc-600 text-sm">
-                            Set up Supabase in Settings to sync your data to the cloud.
-                        </p>
-                    )}
                 </div>
             )}
 
