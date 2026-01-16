@@ -159,9 +159,11 @@ const SortableExerciseCard: React.FC<SortableExerciseCardProps> = ({
     };
 
     // Memoize sorted sets to avoid re-sorting on every render
-    const sortedSets = useMemo(() =>
-        [...exSets].sort((a, b) => a.setNumber - b.setNumber)
-        , [exSets]);
+    // Sort sets by set number
+    const sortedSets = [...exSets].sort((a, b) => a.setNumber - b.setNumber);
+
+    // Get the exerciseId from the first set for name lookup
+    const exerciseId = exSets[0]?.exerciseId || exId;
     return (
         <div
             ref={setNodeRef}
@@ -177,11 +179,11 @@ const SortableExerciseCard: React.FC<SortableExerciseCardProps> = ({
                     >
                         <GripVertical size={18} />
                     </button>
-                    <h3 className="font-bold text-blue-400">{getExerciseName(exId)}</h3>
+                    <h3 className="font-bold text-blue-400">{getExerciseName(exerciseId)}</h3>
                 </div>
                 <button
                     onClick={() => {
-                        if (confirm(`Remove ${getExerciseName(exId)} from this workout?`)) {
+                        if (confirm(`Remove ${getExerciseName(exerciseId)} from this workout?`)) {
                             handleDeleteExercise(exId);
                         }
                     }}
@@ -308,13 +310,14 @@ export const ActiveWorkout: React.FC = () => {
         return () => clearInterval(interval);
     }, [workout]);
 
-    // Group sets by exercise
+    // Group sets by instanceId (allows same exercise to appear multiple times)
     const workoutExercises = useMemo(() => {
         return sets?.reduce((acc, set) => {
-            if (!acc[set.exerciseId]) {
-                acc[set.exerciseId] = [];
+            const key = set.instanceId || set.exerciseId; // Fallback for old data
+            if (!acc[key]) {
+                acc[key] = [];
             }
-            acc[set.exerciseId].push(set);
+            acc[key].push(set);
             return acc;
         }, {} as Record<string, WorkoutSet[]>) || {};
     }, [sets]);
@@ -402,9 +405,13 @@ export const ActiveWorkout: React.FC = () => {
 
     const handleAddExercise = async (exerciseId: string) => {
         try {
+            // Generate unique instanceId for this occurrence of the exercise
+            const instanceId = `${exerciseId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
             await db.sets.add({
                 workoutId: String(id),
                 exerciseId,
+                instanceId,
                 setNumber: 1,
                 weight: 0,
                 reps: 0,
@@ -417,15 +424,18 @@ export const ActiveWorkout: React.FC = () => {
         }
     };
 
-    const handleAddSet = async (exerciseId: string, currentSets: WorkoutSet[]) => {
+    const handleAddSet = async (instanceId: string, currentSets: WorkoutSet[]) => {
         try {
             const lastSet = currentSets[currentSets.length - 1];
+            if (!lastSet) return; // Need at least one set to get exerciseId
+
             await db.sets.add({
                 workoutId: String(id),
-                exerciseId,
+                exerciseId: lastSet.exerciseId,
+                instanceId, // Use the same instanceId to group with existing sets
                 setNumber: currentSets.length + 1,
-                weight: lastSet ? lastSet.weight : 0,
-                reps: lastSet ? lastSet.reps : 0,
+                weight: lastSet.weight,
+                reps: lastSet.reps,
                 completed: false,
                 timestamp: new Date()
             });
@@ -442,15 +452,16 @@ export const ActiveWorkout: React.FC = () => {
         }
     };
 
-    const handleDeleteExercise = async (exerciseId: string) => {
+    const handleDeleteExercise = async (instanceId: string) => {
         try {
-            const setsToDelete = sets?.filter(s => s.exerciseId === exerciseId) || [];
+            // Delete by instanceId (or fall back to exerciseId for old data)
+            const setsToDelete = sets?.filter(s => (s.instanceId || s.exerciseId) === instanceId) || [];
             const idsToDelete = setsToDelete.map(s => s.id).filter((id): id is number => id !== undefined);
             if (idsToDelete.length > 0) {
                 await db.sets.bulkDelete(idsToDelete);
             }
             // Remove from order
-            setExerciseOrder(prev => prev.filter(id => id !== exerciseId));
+            setExerciseOrder(prev => prev.filter(id => id !== instanceId));
         } catch (error) {
             console.error('Failed to delete exercise:', error);
         }

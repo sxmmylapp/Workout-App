@@ -20,6 +20,7 @@ export interface WorkoutSet {
     id?: number;
     workoutId: string;
     exerciseId: string;
+    instanceId: string; // Unique ID for each occurrence of an exercise in a workout (allows same exercise multiple times)
     setNumber: number;
     weight: number;
     reps: number;
