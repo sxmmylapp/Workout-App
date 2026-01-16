@@ -88,7 +88,7 @@ interface ListEditorProps {
 const ListEditor: React.FC<ListEditorProps> = ({ title, items, onSave, defaultItems }) => {
     const [localItems, setLocalItems] = useState<string[]>(items);
     const [newItem, setNewItem] = useState('');
-    const [isExpanded, setIsExpanded] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(true);
 
     // Sync localItems when items prop changes (e.g., after parent loads from localStorage)
     useEffect(() => {
