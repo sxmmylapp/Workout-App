@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Wifi, RefreshCw, CheckCircle, XCircle, Database, Timer } from 'lucide-react';
+import { Save, Wifi, RefreshCw, CheckCircle, XCircle, Database, Timer, Plus, X, List, RotateCcw } from 'lucide-react';
 import { testConnection, syncAllPendingWorkouts } from '../utils/sync';
 import { resetSupabaseClient } from '../lib/supabase';
+import { getMuscleGroups, setMuscleGroups, getEquipment, setEquipment, DEFAULT_MUSCLE_GROUPS, DEFAULT_EQUIPMENT } from '../utils/exerciseLists';
 
 // Rest Timer Settings Component
 const RestTimerSettings: React.FC = () => {
@@ -72,6 +73,148 @@ const RestTimerSettings: React.FC = () => {
                     </div>
                 </div>
             )}
+        </div>
+    );
+};
+
+// List Editor Component for Muscle Groups and Equipment
+interface ListEditorProps {
+    title: string;
+    items: string[];
+    onSave: (items: string[]) => void;
+    defaultItems: string[];
+}
+
+const ListEditor: React.FC<ListEditorProps> = ({ title, items, onSave, defaultItems }) => {
+    const [localItems, setLocalItems] = useState<string[]>(items);
+    const [newItem, setNewItem] = useState('');
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    const handleAdd = () => {
+        const trimmed = newItem.trim();
+        if (trimmed && !localItems.includes(trimmed)) {
+            const updated = [...localItems, trimmed];
+            setLocalItems(updated);
+            onSave(updated);
+            setNewItem('');
+        }
+    };
+
+    const handleRemove = (item: string) => {
+        const updated = localItems.filter(i => i !== item);
+        setLocalItems(updated);
+        onSave(updated);
+    };
+
+    const handleReset = () => {
+        if (confirm(`Reset ${title} to defaults?`)) {
+            setLocalItems(defaultItems);
+            onSave(defaultItems);
+        }
+    };
+
+    return (
+        <div className="bg-zinc-900 p-4 rounded-xl border border-zinc-800">
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full flex items-center justify-between"
+            >
+                <div className="flex items-center gap-2">
+                    <List size={18} className="text-purple-500" />
+                    <span className="font-bold">{title}</span>
+                    <span className="text-xs text-zinc-500">({localItems.length})</span>
+                </div>
+                <span className="text-zinc-500 text-sm">{isExpanded ? '−' : '+'}</span>
+            </button>
+
+            {isExpanded && (
+                <div className="mt-4 space-y-3">
+                    {/* Current items */}
+                    <div className="flex flex-wrap gap-2">
+                        {localItems.map(item => (
+                            <div
+                                key={item}
+                                className="flex items-center gap-1 bg-zinc-800 px-3 py-1 rounded-full text-sm"
+                            >
+                                <span>{item}</span>
+                                <button
+                                    onClick={() => handleRemove(item)}
+                                    className="text-zinc-500 hover:text-red-400 ml-1"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Add new item */}
+                    <div className="flex gap-2">
+                        <input
+                            type="text"
+                            value={newItem}
+                            onChange={(e) => setNewItem(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                            placeholder={`Add ${title.toLowerCase().slice(0, -1)}...`}
+                            className="flex-1 bg-zinc-800 px-3 py-2 rounded-lg text-sm border border-zinc-700 focus:border-purple-500 outline-none"
+                        />
+                        <button
+                            onClick={handleAdd}
+                            disabled={!newItem.trim()}
+                            className="bg-purple-600 text-white px-3 py-2 rounded-lg disabled:opacity-50"
+                        >
+                            <Plus size={18} />
+                        </button>
+                    </div>
+
+                    {/* Reset button */}
+                    <button
+                        onClick={handleReset}
+                        className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300"
+                    >
+                        <RotateCcw size={12} />
+                        Reset to defaults
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Exercise Lists Settings Component
+const ExerciseListsSettings: React.FC = () => {
+    const [muscleGroups, setMuscleGroupsState] = useState<string[]>([]);
+    const [equipment, setEquipmentState] = useState<string[]>([]);
+
+    useEffect(() => {
+        setMuscleGroupsState(getMuscleGroups());
+        setEquipmentState(getEquipment());
+    }, []);
+
+    const handleSaveMuscleGroups = (items: string[]) => {
+        setMuscleGroups(items);
+        setMuscleGroupsState(items);
+    };
+
+    const handleSaveEquipment = (items: string[]) => {
+        setEquipment(items);
+        setEquipmentState(items);
+    };
+
+    return (
+        <div className="space-y-3">
+            <h3 className="font-bold text-lg">Exercise Categories</h3>
+            <ListEditor
+                title="Muscle Groups"
+                items={muscleGroups}
+                onSave={handleSaveMuscleGroups}
+                defaultItems={DEFAULT_MUSCLE_GROUPS}
+            />
+            <ListEditor
+                title="Equipment"
+                items={equipment}
+                onSave={handleSaveEquipment}
+                defaultItems={DEFAULT_EQUIPMENT}
+            />
         </div>
     );
 };
@@ -244,6 +387,9 @@ export const Settings: React.FC = () => {
 
             {/* Rest Timer Settings */}
             <RestTimerSettings />
+
+            {/* Exercise Lists Settings */}
+            <ExerciseListsSettings />
 
             <div className="bg-zinc-900 p-6 rounded-xl border border-zinc-800">
                 <h3 className="font-bold text-lg mb-2">Data Management</h3>

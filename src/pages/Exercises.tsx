@@ -3,9 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { Plus, Search, X, Trash2, CheckSquare, Square, ChevronRight } from 'lucide-react';
-
-const MUSCLE_GROUPS = ['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Core', 'Glutes', 'Forearms'];
-const EQUIPMENT = ['Barbell', 'Dumbbell', 'Machine', 'Cable', 'Bodyweight', 'Kettlebell', 'Bands', 'Other'];
+import { getMuscleGroups, getEquipment } from '../utils/exerciseLists';
 
 export const Exercises: React.FC = () => {
     const navigate = useNavigate();
@@ -16,6 +14,10 @@ export const Exercises: React.FC = () => {
     const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
 
     const exercises = useLiveQuery(() => db.exercises.toArray());
+
+    // Get dynamic lists on each render
+    const MUSCLE_GROUPS = getMuscleGroups();
+    const EQUIPMENT = getEquipment();
 
     // Filter exercises based on search
     const filteredExercises = exercises?.filter(ex =>
@@ -156,8 +158,8 @@ export const Exercises: React.FC = () => {
                             }
                         }}
                         className={`p-4 bg-zinc-900 rounded-xl border flex justify-between items-center transition-colors cursor-pointer hover:bg-zinc-800 ${selectedIds.has(ex.id!)
-                                ? 'border-blue-500 bg-blue-900/20'
-                                : 'border-zinc-800'
+                            ? 'border-blue-500 bg-blue-900/20'
+                            : 'border-zinc-800'
                             }`}
                     >
                         <div className="flex items-center gap-3">

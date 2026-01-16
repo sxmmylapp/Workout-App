@@ -4,9 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { ArrowLeft, Edit2, Trophy, TrendingUp, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
-
-const MUSCLE_GROUPS = ['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Core', 'Glutes', 'Forearms'];
-const EQUIPMENT = ['Barbell', 'Dumbbell', 'Machine', 'Cable', 'Bodyweight', 'Kettlebell', 'Bands', 'Other'];
+import { getMuscleGroups, getEquipment } from '../utils/exerciseLists';
 
 export const ExerciseDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -15,6 +13,10 @@ export const ExerciseDetail: React.FC = () => {
     const [editForm, setEditForm] = useState({ name: '', muscleGroup: '', equipment: '' });
 
     const exercise = useLiveQuery(() => db.exercises.get(Number(id)), [id]);
+
+    // Get dynamic lists
+    const MUSCLE_GROUPS = getMuscleGroups();
+    const EQUIPMENT = getEquipment();
 
     // Get all sets for this exercise
     const sets = useLiveQuery(async () => {
