@@ -18,8 +18,9 @@ interface CombinedWorkout {
 export const History: React.FC = () => {
     const navigate = useNavigate();
     const [cloudWorkouts, setCloudWorkouts] = useState<SupabaseWorkout[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [hasFetched, setHasFetched] = useState(false);
 
     // Local workouts
     const localWorkouts = useLiveQuery(() =>
@@ -38,30 +39,27 @@ export const History: React.FC = () => {
     const exercises = useLiveQuery(() => db.exercises.toArray());
 
     const loadFromCloud = async () => {
-        if (loading) return; // Prevent multiple simultaneous fetches
+        if (loading || hasFetched) return;
         setLoading(true);
         setError(null);
         try {
             const workouts = await fetchHistoryFromSupabase();
             setCloudWorkouts(workouts);
         } catch (e) {
+            console.error('Failed to load history from cloud:', e);
             setError('Failed to load from cloud');
         } finally {
             setLoading(false);
+            setHasFetched(true);
         }
     };
 
-    // Check Supabase config status
-    const hasSupabase = isSupabaseConfigured();
-
-    // Fetch from cloud on mount and when Supabase becomes configured
+    // Fetch from cloud on mount
     useEffect(() => {
-        if (hasSupabase && cloudWorkouts.length === 0 && !loading) {
+        if (isSupabaseConfigured() && !hasFetched) {
             loadFromCloud();
-        } else if (!hasSupabase) {
-            setLoading(false);
         }
-    }, [hasSupabase]); // Re-run when Supabase config changes
+    }, [hasFetched]);
 
     // Get exercise names for a local workout
     const getLocalExerciseNames = (workoutId: string): string[] => {
