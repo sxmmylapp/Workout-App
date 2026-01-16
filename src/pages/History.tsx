@@ -38,6 +38,7 @@ export const History: React.FC = () => {
     const exercises = useLiveQuery(() => db.exercises.toArray());
 
     const loadFromCloud = async () => {
+        if (loading) return; // Prevent multiple simultaneous fetches
         setLoading(true);
         setError(null);
         try {
@@ -50,13 +51,17 @@ export const History: React.FC = () => {
         }
     };
 
+    // Check Supabase config status
+    const hasSupabase = isSupabaseConfigured();
+
+    // Fetch from cloud on mount and when Supabase becomes configured
     useEffect(() => {
-        if (isSupabaseConfigured()) {
+        if (hasSupabase && cloudWorkouts.length === 0 && !loading) {
             loadFromCloud();
-        } else {
+        } else if (!hasSupabase) {
             setLoading(false);
         }
-    }, []);
+    }, [hasSupabase]); // Re-run when Supabase config changes
 
     // Get exercise names for a local workout
     const getLocalExerciseNames = (workoutId: string): string[] => {
@@ -119,7 +124,7 @@ export const History: React.FC = () => {
         return Array.from(workoutsMap.values()).sort((a, b) => b.date.getTime() - a.date.getTime());
     }, [localWorkouts, localSets, exercises, cloudWorkouts]);
 
-    const hasSupabase = isSupabaseConfigured();
+
 
     const handleWorkoutClick = (workout: CombinedWorkout) => {
         // Navigate for all workouts - WorkoutDetail handles cloud fetching
