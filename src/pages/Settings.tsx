@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Wifi, RefreshCw, CheckCircle, XCircle, Database, Timer, Plus, X, List, RotateCcw } from 'lucide-react';
+import { Save, Wifi, RefreshCw, CheckCircle, XCircle, Database, Timer, Plus, X, List, RotateCcw, LogOut, User } from 'lucide-react';
 import { testConnection, syncAllPendingWorkouts } from '../utils/sync';
 import { resetSupabaseClient } from '../lib/supabase';
 import { getMuscleGroups, setMuscleGroups, getEquipment, setEquipment, DEFAULT_MUSCLE_GROUPS, DEFAULT_EQUIPMENT } from '../utils/exerciseLists';
+import { useAuth } from '../contexts/AuthContext';
 
 // Rest Timer Settings Component
 const RestTimerSettings: React.FC = () => {
@@ -235,6 +236,7 @@ const ExerciseListsSettings: React.FC = () => {
 };
 
 export const Settings: React.FC = () => {
+    const { user, signOut } = useAuth();
     const [supabaseUrl, setSupabaseUrl] = useState('');
     const [supabaseKey, setSupabaseKey] = useState('');
     const [status, setStatus] = useState('');
@@ -243,6 +245,11 @@ export const Settings: React.FC = () => {
     const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'done'>('idle');
     const [syncResult, setSyncResult] = useState('');
 
+    const handleLogout = async () => {
+        if (confirm('Sign out of your account?')) {
+            await signOut();
+        }
+    };
     useEffect(() => {
         const savedUrl = localStorage.getItem('supabaseUrl');
         const savedKey = localStorage.getItem('supabaseAnonKey');
@@ -308,6 +315,27 @@ export const Settings: React.FC = () => {
     return (
         <div className="space-y-6">
             <h1 className="text-2xl font-bold">Settings</h1>
+
+            {/* Account Section */}
+            <div className="bg-zinc-900 p-6 rounded-xl border border-zinc-800 space-y-4">
+                <div className="flex items-center gap-2">
+                    <User size={20} className="text-blue-500" />
+                    <h3 className="font-bold text-lg">Account</h3>
+                </div>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="font-medium">{user?.email}</p>
+                        <p className="text-sm text-zinc-500">Signed in</p>
+                    </div>
+                    <button
+                        onClick={handleLogout}
+                        className="bg-red-600/20 text-red-400 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-red-600/30"
+                    >
+                        <LogOut size={16} />
+                        Sign Out
+                    </button>
+                </div>
+            </div>
 
             <div className="bg-zinc-900 p-6 rounded-xl border border-zinc-800 space-y-4">
                 <div className="flex items-center gap-2">
