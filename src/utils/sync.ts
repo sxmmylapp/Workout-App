@@ -487,25 +487,32 @@ export const syncTemplatesToSupabase = async (): Promise<{ synced: number; faile
 
     for (const template of templates) {
         try {
-            // Check if template already exists in cloud
+            // Check if template already exists in cloud by NAME (not local_id)
             const { data: existing } = await supabase
                 .from('templates')
                 .select('id')
                 .eq('user_id', user.id)
-                .eq('local_id', String(template.id))
-                .single();
+                .eq('name', template.name);
 
-            if (existing) {
-                // Update existing
+            if (existing && existing.length > 0) {
+                // Update the first match
+                const firstId = existing[0].id;
                 const { error } = await supabase
                     .from('templates')
                     .update({
-                        name: template.name,
+                        local_id: String(template.id), // Update local_id to match current device
                         exercises: template.exercises,
                         updated_at: new Date().toISOString()
                     })
-                    .eq('id', existing.id);
+                    .eq('id', firstId);
                 if (error) throw error;
+
+                // Delete duplicates if any
+                if (existing.length > 1) {
+                    const duplicateIds = existing.slice(1).map(e => e.id);
+                    await supabase.from('templates').delete().in('id', duplicateIds);
+                    console.log(`Cleaned up ${duplicateIds.length} duplicate templates for "${template.name}"`);
+                }
             } else {
                 // Insert new
                 const { error } = await supabase.from('templates').insert({
@@ -607,6 +614,9 @@ export interface SupabaseScheduledWorkout {
 /**
  * Sync all local scheduled workouts to Supabase
  */
+/**
+ * Sync all local scheduled workouts to Supabase
+ */
 export const syncScheduledWorkoutsToSupabase = async (): Promise<{ synced: number; failed: number }> => {
     const supabase = getSupabase();
     if (!supabase) return { synced: 0, failed: 0 };
@@ -620,26 +630,34 @@ export const syncScheduledWorkoutsToSupabase = async (): Promise<{ synced: numbe
 
     for (const workout of scheduled) {
         try {
-            // Check if exists in cloud
+            // Check if exists in cloud by DATE and TEMPLATE NAME (not local_id)
             const { data: existing } = await supabase
                 .from('scheduled_workouts')
                 .select('id')
                 .eq('user_id', user.id)
-                .eq('local_id', String(workout.id))
-                .single();
+                .eq('date', workout.date)
+                .eq('template_name', workout.templateName);
 
-            if (existing) {
+            if (existing && existing.length > 0) {
+                // Update first match
+                const firstId = existing[0].id;
                 const { error } = await supabase
                     .from('scheduled_workouts')
                     .update({
-                        template_name: workout.templateName,
-                        date: workout.date,
+                        local_id: String(workout.id),
                         notes: workout.notes,
                         exercises: workout.exercises,
                         completed: workout.completed || false
                     })
-                    .eq('id', existing.id);
+                    .eq('id', firstId);
                 if (error) throw error;
+
+                // Delete duplicates if any
+                if (existing.length > 1) {
+                    const duplicateIds = existing.slice(1).map(e => e.id);
+                    await supabase.from('scheduled_workouts').delete().in('id', duplicateIds);
+                    console.log(`Cleaned up ${duplicateIds.length} duplicate scheduled workouts for "${workout.templateName}" on ${workout.date}`);
+                }
             } else {
                 const { error } = await supabase.from('scheduled_workouts').insert({
                     local_id: String(workout.id),
@@ -809,6 +827,51 @@ export const fetchUserSettingsFromSupabase = async (): Promise<void> => {
 };
 
 /**
+ * Clean up local duplicates
+ */
+const cleanupLocalDuplicates = async () => {
+    // Clean up template duplicates
+    const templates = await db.templates.toArray();
+    const uniqueTemplates = new Map<string, number>();
+    const templateIdsToDelete: number[] = [];
+
+    for (const t of templates) {
+        const key = t.name.toLowerCase();
+        if (uniqueTemplates.has(key)) {
+            // Keep the one with the higher ID (likely newer) or just the first one
+            // Actually, keep the one that matches cloud if possible, but here we just dedupe by name
+            templateIdsToDelete.push(t.id!);
+        } else {
+            uniqueTemplates.set(key, t.id!);
+        }
+    }
+
+    if (templateIdsToDelete.length > 0) {
+        await db.templates.bulkDelete(templateIdsToDelete);
+        console.log(`Cleaned up ${templateIdsToDelete.length} local duplicate templates`);
+    }
+
+    // Clean up scheduled workout duplicates
+    const scheduled = await db.scheduledWorkouts.toArray();
+    const uniqueScheduled = new Map<string, number>();
+    const scheduledIdsToDelete: number[] = [];
+
+    for (const s of scheduled) {
+        const key = `${s.date}-${s.templateName.toLowerCase()}`;
+        if (uniqueScheduled.has(key)) {
+            scheduledIdsToDelete.push(s.id!);
+        } else {
+            uniqueScheduled.set(key, s.id!);
+        }
+    }
+
+    if (scheduledIdsToDelete.length > 0) {
+        await db.scheduledWorkouts.bulkDelete(scheduledIdsToDelete);
+        console.log(`Cleaned up ${scheduledIdsToDelete.length} local duplicate scheduled workouts`);
+    }
+};
+
+/**
  * Full sync - upload and fetch all data
  */
 export const fullCloudSync = async (): Promise<void> => {
@@ -831,6 +894,9 @@ export const fullCloudSync = async (): Promise<void> => {
 
     // Sync workout history
     await syncAllPendingWorkouts(false);
+
+    // Clean up any duplicates that might have been created
+    await cleanupLocalDuplicates();
 
     console.log('Full cloud sync complete');
 };
