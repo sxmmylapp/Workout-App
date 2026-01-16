@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Timer, Plus, X, List, RotateCcw, LogOut, User } from 'lucide-react';
+import { RefreshCw, Timer, Plus, X, List, RotateCcw, LogOut, User, Info } from 'lucide-react';
 import { fullCloudSync } from '../utils/sync';
 import { getMuscleGroups, setMuscleGroups, getEquipment, setEquipment, DEFAULT_MUSCLE_GROUPS, DEFAULT_EQUIPMENT } from '../utils/exerciseLists';
 import { useAuth } from '../contexts/AuthContext';
@@ -326,6 +326,18 @@ export const Settings: React.FC = () => {
                 >
                     Reset Local Database
                 </button>
+            </div>
+
+            {/* Version Info */}
+            <div className="bg-zinc-900 p-6 rounded-xl border border-zinc-800">
+                <div className="flex items-center gap-2 mb-2">
+                    <Info size={18} className="text-zinc-500" />
+                    <h3 className="font-bold text-lg">App Info</h3>
+                </div>
+                <div className="space-y-1 text-sm text-zinc-400">
+                    <p><span className="text-zinc-500">Version:</span> 1.0.0</p>
+                    <p><span className="text-zinc-500">Build:</span> 2026-01-16</p>
+                </div>
             </div>
         </div>
     );
