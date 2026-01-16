@@ -20,7 +20,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 {children}
             </main>
 
-            <nav className="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800" style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}>
+            <nav className="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
                 <div className="flex justify-around items-center h-16">
                     {navItems.map((item) => {
                         const isActive = location.pathname === item.path;
