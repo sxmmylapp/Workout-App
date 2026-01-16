@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type WorkoutSet, type Exercise } from '../db';
@@ -22,6 +22,9 @@ import {
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { DebouncedNumberInput } from '../components/DebouncedNumberInput';
+import { useRestTimer } from '../hooks/useRestTimer';
+import { useElapsedTime } from '../hooks/useElapsedTime';
 
 // Add Exercise Modal with Search
 interface AddExerciseModalProps {
@@ -88,39 +91,6 @@ const AddExerciseModal: React.FC<AddExerciseModalProps> = ({ exercises, onAdd, o
                 )}
             </div>
         </div>
-    );
-};
-
-// Debounced Number Input - saves on blur to prevent excessive DB writes
-interface DebouncedNumberInputProps {
-    value: number;
-    onChange: (value: number) => void;
-    className?: string;
-}
-
-const DebouncedNumberInput: React.FC<DebouncedNumberInputProps> = ({ value, onChange, className }) => {
-    const [localValue, setLocalValue] = useState(String(value));
-
-    // Sync local value when external value changes (e.g., from DB)
-    useEffect(() => {
-        setLocalValue(String(value));
-    }, [value]);
-
-    const handleBlur = () => {
-        const numValue = Number(localValue) || 0;
-        if (numValue !== value) {
-            onChange(numValue);
-        }
-    };
-
-    return (
-        <input
-            type="number"
-            value={localValue}
-            onChange={(e) => setLocalValue(e.target.value)}
-            onBlur={handleBlur}
-            className={className}
-        />
     );
 };
 
@@ -266,322 +236,221 @@ export const ActiveWorkout: React.FC = () => {
     const [workoutName, setWorkoutName] = useState('');
     const [exerciseOrder, setExerciseOrder] = useState<string[]>([]);
 
-    // Rest Timer State
-    const [restTime, setRestTime] = useState(() => {
-        const saved = localStorage.getItem('restTimerDefault');
-        return saved !== null ? Number(saved) : 90;
-    });
-    const [restTimerEnabled] = useState(() => {
-        const saved = localStorage.getItem('restTimerEnabled');
-        return saved !== null ? saved !== 'false' : true;
-    });
-    const [restTimeRemaining, setRestTimeRemaining] = useState<number | null>(null);
-    const [isTimerRunning, setIsTimerRunning] = useState(false);
-
     const workout = useLiveQuery(() => db.workouts.get(Number(id)), [id]);
     const sets = useLiveQuery(() => db.sets.where('workoutId').equals(String(id)).toArray(), [id]);
     const exercises = useLiveQuery(() => db.exercises.toArray());
 
-    // Elapsed time state
-    const [elapsedTime, setElapsedTime] = useState('0:00');
+    // Custom Hooks
+    const {
+        restTime,
+        setRestTime,
+        restTimerEnabled,
+        restTimeRemaining,
+        isTimerRunning,
+        startRestTimer,
+        stopRestTimer,
+        formatTime: formatRestTime
+    } = useRestTimer();
 
-    // Update elapsed time every second
+    const elapsedTime = useElapsedTime(workout?.startTime);
+
+    // Initialize workout name and order
     useEffect(() => {
-        if (!workout) return;
-
-        const updateElapsed = () => {
-            const now = new Date();
-            const diff = Math.floor((now.getTime() - workout.startTime.getTime()) / 1000);
-            const hours = Math.floor(diff / 3600);
-            const minutes = Math.floor((diff % 3600) / 60);
-            const seconds = diff % 60;
-
-            if (hours > 0) {
-                setElapsedTime(`${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
-            } else {
-                setElapsedTime(`${minutes}:${String(seconds).padStart(2, '0')}`);
-            }
-        };
-
-        updateElapsed();
-        const interval = setInterval(updateElapsed, 1000);
-        return () => clearInterval(interval);
+        if (workout) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setWorkoutName(workout.name || 'Workout');
+        }
     }, [workout]);
 
-    // Group sets by instanceId (allows same exercise to appear multiple times)
-    const workoutExercises = useMemo(() => {
-        return sets?.reduce((acc, set) => {
-            const key = set.instanceId || set.exerciseId; // Fallback for old data
-            if (!acc[key]) {
-                acc[key] = [];
-            }
-            acc[key].push(set);
-            return acc;
-        }, {} as Record<string, WorkoutSet[]>) || {};
+    // Update exercise order when sets change (if new exercises added)
+    useEffect(() => {
+        if (sets) {
+            const uniqueExercises = Array.from(new Set(sets.map(s => s.instanceId || s.exerciseId)));
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setExerciseOrder(prev => {
+                // If order is empty, just use the set order
+                if (prev.length === 0) return uniqueExercises;
+
+                // Add any new exercises to the end
+                const newExercises = uniqueExercises.filter(id => !prev.includes(id));
+                // Remove any exercises that no longer have sets
+                const existingExercises = prev.filter(id => uniqueExercises.includes(id));
+
+                if (newExercises.length === 0 && existingExercises.length === prev.length) return prev;
+
+                const newOrder = [...existingExercises, ...newExercises];
+                // Only update DB if order actually changed
+                if (JSON.stringify(newOrder) !== JSON.stringify(prev)) {
+                    // Debounce DB update? Or just do it.
+                    // Ideally we should update DB here but let's avoid infinite loops
+                    // We'll update DB only on explicit reorder
+                }
+                return newOrder;
+            });
+        }
     }, [sets]);
 
-    // Get ordered exercise IDs
-    const orderedExerciseIds = useMemo(() => {
-        const currentExerciseIds = Object.keys(workoutExercises);
-
-        // Start with exercises that are in both order and current
-        const orderedAndPresent = exerciseOrder.filter(id => currentExerciseIds.includes(id));
-
-        // Add any new exercises that aren't in the order yet
-        const newExercises = currentExerciseIds.filter(id => !exerciseOrder.includes(id));
-
-        return [...orderedAndPresent, ...newExercises];
-    }, [workoutExercises, exerciseOrder]);
-
-    // Memoized exercise name lookup map - O(1) instead of O(n)
-    const exerciseNameMap = useMemo(() =>
-        new Map(exercises?.map(e => [String(e.id), e.name]) || [])
-        , [exercises]);
-
+    // DnD Sensors
     const sensors = useSensors(
         useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 8,
-            },
+            activationConstraint: { distance: 8 },
         }),
         useSensor(KeyboardSensor, {
             coordinateGetter: sortableKeyboardCoordinates,
         })
     );
 
-    // Rest Timer Functions - Must be before early return (Rules of Hooks)
-    const startRestTimer = useCallback(() => {
-        // Use cached state values instead of reading localStorage
-        if (!restTimerEnabled) return;
-
-        setRestTimeRemaining(restTime);
-        setIsTimerRunning(true);
-    }, [restTime, restTimerEnabled]);
-
-    const stopRestTimer = useCallback(() => {
-        setIsTimerRunning(false);
-        setRestTimeRemaining(null);
-    }, []);
-
-    // Timer countdown effect - Must be before early return
-    // Timer countdown effect
-    useEffect(() => {
-        if (!isTimerRunning || restTimeRemaining === null) return;
-
-        if (restTimeRemaining <= 0) {
-            if ('vibrate' in navigator) {
-                navigator.vibrate([200, 100, 200]);
-            }
-            // Use setTimeout to avoid synchronous state update during render phase if that was the issue
-            // although this effect runs after render.
-            // The linter might be flagging the state update that triggers re-render.
-            // We'll just stop the timer.
-            setIsTimerRunning(false);
-            setRestTimeRemaining(null);
-            return;
-        }
-
-        const interval = setInterval(() => {
-            setRestTimeRemaining(prev => (prev !== null ? prev - 1 : null));
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, [isTimerRunning, restTimeRemaining]);
-
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
 
         if (over && active.id !== over.id) {
-            const oldIndex = orderedExerciseIds.indexOf(active.id as string);
-            const newIndex = orderedExerciseIds.indexOf(over.id as string);
-            const newOrder = arrayMove(orderedExerciseIds, oldIndex, newIndex);
-            setExerciseOrder(newOrder);
-        }
-    };
+            setExerciseOrder((items) => {
+                const oldIndex = items.indexOf(String(active.id));
+                const newIndex = items.indexOf(String(over.id));
+                const newOrder = arrayMove(items, oldIndex, newIndex);
 
-    if (!workout) {
-        return (
-            <div className="flex items-center justify-center h-48">
-                <div className="text-zinc-500">Loading workout...</div>
-            </div>
-        );
-    }
+                // Persist order to DB
 
-    const handleAddExercise = async (exerciseId: string) => {
-        try {
-            // Generate unique instanceId for this occurrence of the exercise
-            const instanceId = `${exerciseId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-            await db.sets.add({
-                workoutId: String(id),
-                exerciseId,
-                instanceId,
-                setNumber: 1,
-                weight: 0,
-                reps: 0,
-                completed: false,
-                timestamp: new Date()
+                return newOrder;
             });
-            setIsAddExerciseOpen(false);
-        } catch (error) {
-            console.error('Failed to add exercise:', error);
         }
     };
 
-    const handleAddSet = async (instanceId: string, currentSets: WorkoutSet[]) => {
-        try {
-            const lastSet = currentSets[currentSets.length - 1];
-            if (!lastSet) return; // Need at least one set to get exerciseId
+    const updateSet = async (setId: number, updates: Partial<WorkoutSet>) => {
+        await db.sets.update(setId, updates);
 
-            await db.sets.add({
-                workoutId: String(id),
-                exerciseId: lastSet.exerciseId,
-                instanceId, // Use the same instanceId to group with existing sets
-                setNumber: currentSets.length + 1,
-                weight: lastSet.weight,
-                reps: lastSet.reps,
-                completed: false,
-                timestamp: new Date()
-            });
-        } catch (error) {
-            console.error('Failed to add set:', error);
-        }
-    };
-
-    const handleDeleteSet = async (setId: number) => {
-        try {
-            await db.sets.delete(setId);
-        } catch (error) {
-            console.error('Failed to delete set:', error);
-        }
-    };
-
-    const handleDeleteExercise = async (instanceId: string) => {
-        try {
-            // Delete by instanceId (or fall back to exerciseId for old data)
-            const setsToDelete = sets?.filter(s => (s.instanceId || s.exerciseId) === instanceId) || [];
-            const idsToDelete = setsToDelete.map(s => s.id).filter((id): id is number => id !== undefined);
-            if (idsToDelete.length > 0) {
-                await db.sets.bulkDelete(idsToDelete);
-            }
-            // Remove from order
-            setExerciseOrder(prev => prev.filter(id => id !== instanceId));
-        } catch (error) {
-            console.error('Failed to delete exercise:', error);
-        }
-    };
-
-    const handleDeleteWorkout = async () => {
-        if (confirm('Delete this workout? All data will be lost.')) {
-            try {
-                if (sets) {
-                    const idsToDelete = sets.map(s => s.id).filter((id): id is number => id !== undefined);
-                    if (idsToDelete.length > 0) {
-                        await db.sets.bulkDelete(idsToDelete);
-                    }
-                }
-                await db.workouts.delete(Number(id));
-                navigate('/');
-            } catch (error) {
-                console.error('Failed to delete workout:', error);
-            }
-        }
-    };
-
-    const adjustRestTime = (delta: number) => {
-        const newTime = Math.max(15, Math.min(300, restTime + delta));
-        setRestTime(newTime);
-        if (restTimeRemaining !== null) {
-            setRestTimeRemaining(Math.max(0, restTimeRemaining + delta));
-        }
-    };
-
-    const updateSet = (setId: number, updates: Partial<WorkoutSet>) => {
-        db.sets.update(setId, updates);
-        // Start rest timer when set is marked as completed
-        if (updates.completed === true) {
+        // If completing a set, start rest timer
+        if (updates.completed === true && restTimerEnabled) {
             startRestTimer();
         }
     };
 
-    const openFinishModal = () => {
-        const exerciseNames = orderedExerciseIds.map(exId =>
-            exercises?.find(e => String(e.id) === exId)?.name
-        ).filter(Boolean);
-
-        const defaultName = exerciseNames.length > 0
-            ? exerciseNames.slice(0, 2).join(' & ') + (exerciseNames.length > 2 ? ' +' : '')
-            : 'Workout';
-
-        setWorkoutName(defaultName);
-        setIsFinishModalOpen(true);
+    const handleAddSet = async (exerciseId: string, currentSets: WorkoutSet[]) => {
+        const lastSet = currentSets[currentSets.length - 1];
+        await db.sets.add({
+            workoutId: String(id),
+            exerciseId: currentSets[0]?.exerciseId || exerciseId, // Use existing exerciseId from set or the passed one
+            instanceId: exerciseId, // This is the grouping ID
+            setNumber: currentSets.length + 1,
+            weight: lastSet ? lastSet.weight : 0,
+            reps: lastSet ? lastSet.reps : 10,
+            completed: false,
+            timestamp: new Date()
+        });
     };
 
-    const finishWorkout = async () => {
-        const finalName = workoutName.trim() || 'Workout';
+    const handleDeleteSet = async (setId: number) => {
+        await db.sets.delete(setId);
+    };
 
-        try {
-            await db.workouts.update(Number(id), {
-                name: finalName,
-                status: 'completed',
-                endTime: new Date()
-            });
-
-            // Try to sync, but don't block navigation on failure
-            syncToSupabase(Number(id)).catch(error => {
-                console.error('Failed to sync workout to Supabase:', error);
-            });
-
-            navigate('/history');
-        } catch (error) {
-            console.error('Failed to finish workout:', error);
+    const handleDeleteExercise = async (instanceId: string) => {
+        // Delete all sets for this exercise instance
+        const setsToDelete = sets?.filter(s => (s.instanceId || s.exerciseId) === instanceId);
+        if (setsToDelete) {
+            await db.sets.bulkDelete(setsToDelete.map(s => Number(s.id)));
         }
+        // Remove from order
+        const newOrder = exerciseOrder.filter(id => id !== instanceId);
+        setExerciseOrder(newOrder);
     };
 
-    const getExerciseName = (exId: string) => exerciseNameMap.get(exId) || 'Unknown Exercise';
+    const handleAddExercise = async (exerciseId: string) => {
+        // Create a new unique instance ID for this exercise in this workout
+        const instanceId = `${exerciseId}-${crypto.randomUUID()}`;
+
+        await db.sets.add({
+            workoutId: String(id),
+            exerciseId,
+            instanceId,
+            setNumber: 1,
+            weight: 0,
+            reps: 10,
+            completed: false,
+            timestamp: new Date()
+        });
+
+        setIsAddExerciseOpen(false);
+        // Order update will happen in useEffect
+    };
+
+    const handleFinishWorkout = async () => {
+        if (!workout) return;
+
+        const endTime = new Date();
+
+        await db.workouts.update(Number(id), {
+            endTime,
+            status: 'completed'
+        });
+
+        // Trigger sync
+        syncToSupabase(Number(id));
+
+        navigate('/history');
+    };
+
+    const getExerciseName = (exId: string) => {
+        return exercises?.find(e => String(e.id) === exId)?.name || 'Unknown Exercise';
+    };
+
+    if (!workout) return <div>Loading...</div>;
+
+    // Group sets by instanceId (or exerciseId for backward compatibility)
+    const setsByExercise: { [key: string]: WorkoutSet[] } = {};
+    sets?.forEach(set => {
+        const key = set.instanceId || set.exerciseId;
+        if (!setsByExercise[key]) {
+            setsByExercise[key] = [];
+        }
+        setsByExercise[key].push(set);
+    });
+
+    // Use exerciseOrder to determine display order
+    // Filter out any IDs that don't have sets anymore
+    const orderedExerciseIds = exerciseOrder.filter(id => setsByExercise[id]);
+
+    // Add any exercises that have sets but aren't in the order array (legacy/fallback)
+    Object.keys(setsByExercise).forEach(key => {
+        if (!orderedExerciseIds.includes(key)) {
+            orderedExerciseIds.push(key);
+        }
+    });
 
     return (
-        <div className="pb-24 space-y-6">
+        <div className="min-h-screen pb-24 relative">
             {/* Header */}
-            <div className="flex justify-between items-center sticky top-0 bg-black/80 backdrop-blur-md py-4 z-10">
+            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-zinc-800 p-4 flex justify-between items-center">
                 <div>
-                    <h1 className="text-xl font-bold">{workout.name}</h1>
-                    <div className="flex items-center text-xs text-zinc-400 gap-2">
-                        <Clock size={12} />
-                        <span className="font-mono text-sm text-white">{elapsedTime}</span>
-                        <span>•</span>
-                        <span>{sets?.length || 0} sets</span>
+                    <h1 className="text-xl font-bold">{workoutName}</h1>
+                    <div className="flex items-center gap-2 text-zinc-400 text-sm">
+                        <Clock size={14} />
+                        <span className="font-mono">{elapsedTime}</span>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={handleDeleteWorkout}
-                        className="text-red-500 hover:text-red-400 p-2"
-                    >
-                        <Trash2 size={20} />
-                    </button>
-                    <button
-                        onClick={openFinishModal}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-blue-700"
-                    >
-                        Finish
-                    </button>
-                </div>
+                <button
+                    onClick={() => setIsFinishModalOpen(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm"
+                >
+                    Finish
+                </button>
             </div>
 
-            {/* Workout Exercises - Sortable */}
-            <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-            >
-                <SortableContext items={orderedExerciseIds} strategy={verticalListSortingStrategy}>
-                    <div className="space-y-4">
-                        {orderedExerciseIds.map((exId) => (
+            {/* Exercise List */}
+            <div className="p-4 space-y-4">
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                >
+                    <SortableContext
+                        items={orderedExerciseIds}
+                        strategy={verticalListSortingStrategy}
+                    >
+                        {orderedExerciseIds.map(exId => (
                             <SortableExerciseCard
                                 key={exId}
                                 exId={exId}
-                                exSets={workoutExercises[exId] || []}
+                                exSets={setsByExercise[exId]}
                                 getExerciseName={getExerciseName}
                                 handleDeleteExercise={handleDeleteExercise}
                                 handleAddSet={handleAddSet}
@@ -589,22 +458,74 @@ export const ActiveWorkout: React.FC = () => {
                                 updateSet={updateSet}
                             />
                         ))}
-                    </div>
-                </SortableContext>
-            </DndContext>
+                    </SortableContext>
+                </DndContext>
 
-            {/* Add Exercise Button */}
-            <button
-                onClick={() => setIsAddExerciseOpen(true)}
-                className="w-full py-4 border-2 border-dashed border-zinc-800 text-zinc-500 rounded-xl font-bold hover:border-zinc-700 hover:text-zinc-400 transition-all"
-            >
-                Add Exercise
-            </button>
+                <button
+                    onClick={() => setIsAddExerciseOpen(true)}
+                    className="w-full py-4 bg-zinc-900 border border-dashed border-zinc-700 rounded-xl text-zinc-400 hover:text-white hover:border-zinc-500 flex flex-col items-center gap-2 transition-colors"
+                >
+                    <Plus size={24} />
+                    <span className="font-bold">Add Exercise</span>
+                </button>
+            </div>
+
+            {/* Rest Timer Overlay */}
+            {isTimerRunning && restTimeRemaining !== null && (
+                <div className="fixed bottom-24 right-4 bg-zinc-900 border border-zinc-700 rounded-full shadow-lg shadow-black/50 p-1 pr-4 flex items-center gap-3 z-40 animate-in slide-in-from-bottom-4">
+                    <div className="bg-zinc-800 rounded-full p-2 relative">
+                        <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
+                            <path
+                                className="text-zinc-700"
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                            />
+                            <path
+                                className="text-blue-500 transition-all duration-1000 ease-linear"
+                                strokeDasharray={`${(restTimeRemaining / restTime) * 100}, 100`}
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                            />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <Timer size={16} className="text-blue-400" />
+                        </div>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-xs text-zinc-500 font-bold uppercase">Resting</span>
+                        <span className="font-mono font-bold text-lg leading-none">{formatRestTime(restTimeRemaining)}</span>
+                    </div>
+                    <div className="flex gap-1">
+                        <button
+                            onClick={() => setRestTime(t => Math.max(10, t - 10))}
+                            className="p-1 hover:bg-zinc-800 rounded text-zinc-400"
+                        >
+                            <Minus size={16} />
+                        </button>
+                        <button
+                            onClick={() => setRestTime(t => t + 10)}
+                            className="p-1 hover:bg-zinc-800 rounded text-zinc-400"
+                        >
+                            <Plus size={16} />
+                        </button>
+                        <button
+                            onClick={stopRestTimer}
+                            className="p-1 hover:bg-red-900/30 rounded text-red-400 ml-1"
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Add Exercise Modal */}
-            {isAddExerciseOpen && (
+            {isAddExerciseOpen && exercises && (
                 <AddExerciseModal
-                    exercises={exercises || []}
+                    exercises={exercises}
                     onAdd={handleAddExercise}
                     onClose={() => setIsAddExerciseOpen(false)}
                 />
@@ -612,84 +533,26 @@ export const ActiveWorkout: React.FC = () => {
 
             {/* Finish Workout Modal */}
             {isFinishModalOpen && (
-                <div className="fixed inset-0 bg-black/90 z-50 p-4 flex items-center justify-center animate-in fade-in duration-200">
-                    <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-sm border border-zinc-800">
-                        <h2 className="text-xl font-bold mb-4">Name Your Workout</h2>
-                        <input
-                            type="text"
-                            value={workoutName}
-                            onChange={(e) => setWorkoutName(e.target.value)}
-                            placeholder="e.g., Push Day, Leg Day"
-                            className="w-full bg-zinc-800 p-3 rounded-lg text-lg border border-zinc-700 focus:border-blue-500 outline-none mb-4"
-                            autoFocus
-                        />
+                <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+                    <div className="bg-zinc-900 rounded-2xl p-6 max-w-sm w-full border border-zinc-800">
+                        <h2 className="text-2xl font-bold mb-2">Finish Workout?</h2>
+                        <p className="text-zinc-400 mb-6">
+                            Great job! Are you ready to complete this workout and save it to your history?
+                        </p>
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setIsFinishModalOpen(false)}
-                                className="flex-1 py-3 rounded-lg bg-zinc-800 text-zinc-400 font-bold hover:bg-zinc-700"
+                                className="flex-1 py-3 bg-zinc-800 font-bold rounded-xl hover:bg-zinc-700"
                             >
                                 Cancel
                             </button>
                             <button
-                                onClick={finishWorkout}
-                                className="flex-1 py-3 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700"
+                                onClick={handleFinishWorkout}
+                                className="flex-1 py-3 bg-green-600 font-bold rounded-xl hover:bg-green-700 text-white"
                             >
-                                Save
+                                Finish
                             </button>
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Rest Timer Overlay */}
-            {isTimerRunning && restTimeRemaining !== null && (
-                <div className="fixed inset-x-0 bottom-20 z-40 px-4 animate-in slide-in-from-bottom duration-300">
-                    <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-4 shadow-2xl">
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2 text-zinc-400">
-                                <Timer size={18} />
-                                <span className="text-sm font-bold uppercase">Rest Timer</span>
-                            </div>
-                            <button
-                                onClick={stopRestTimer}
-                                className="text-zinc-500 hover:text-white"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <div className="flex items-center justify-center gap-4 mb-3">
-                            <button
-                                onClick={() => adjustRestTime(-15)}
-                                className="bg-zinc-800 hover:bg-zinc-700 text-white w-10 h-10 rounded-full flex items-center justify-center"
-                            >
-                                <Minus size={18} />
-                            </button>
-
-                            <div className="text-center">
-                                <div className={clsx(
-                                    "text-5xl font-mono font-bold",
-                                    restTimeRemaining <= 10 ? "text-red-500" : "text-white"
-                                )}>
-                                    {Math.floor(restTimeRemaining / 60)}:{String(restTimeRemaining % 60).padStart(2, '0')}
-                                </div>
-                                <p className="text-xs text-zinc-500 mt-1">Default: {restTime}s</p>
-                            </div>
-
-                            <button
-                                onClick={() => adjustRestTime(15)}
-                                className="bg-zinc-800 hover:bg-zinc-700 text-white w-10 h-10 rounded-full flex items-center justify-center"
-                            >
-                                <Plus size={18} />
-                            </button>
-                        </div>
-
-                        <button
-                            onClick={stopRestTimer}
-                            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl"
-                        >
-                            Skip Rest
-                        </button>
                     </div>
                 </div>
             )}

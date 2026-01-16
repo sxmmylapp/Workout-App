@@ -21,6 +21,7 @@ import {
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { DebouncedNumberInput } from '../components/DebouncedNumberInput';
 
 interface SortableExerciseCardProps {
     exercise: TemplateExercise;
@@ -110,7 +111,15 @@ const SortableExerciseCard: React.FC<SortableExerciseCardProps> = ({
                                         <Minus size={14} />
                                     </button>
                                 )}
-                                <span className="text-lg font-bold min-w-[40px] text-center">{set.targetWeight}</span>
+                                {isEditing ? (
+                                    <DebouncedNumberInput
+                                        value={set.targetWeight}
+                                        onChange={(val) => updateSet(exIdx, setIdx, 'targetWeight', val)}
+                                        className="text-lg font-bold w-[50px] text-center bg-transparent outline-none"
+                                    />
+                                ) : (
+                                    <span className="text-lg font-bold min-w-[40px] text-center">{set.targetWeight}</span>
+                                )}
                                 {isEditing && (
                                     <button
                                         onClick={() => updateSet(exIdx, setIdx, 'targetWeight', set.targetWeight + 5)}
@@ -132,7 +141,15 @@ const SortableExerciseCard: React.FC<SortableExerciseCardProps> = ({
                                         <Minus size={14} />
                                     </button>
                                 )}
-                                <span className="text-lg font-bold min-w-[30px] text-center">{set.targetReps}</span>
+                                {isEditing ? (
+                                    <DebouncedNumberInput
+                                        value={set.targetReps}
+                                        onChange={(val) => updateSet(exIdx, setIdx, 'targetReps', val)}
+                                        className="text-lg font-bold w-[40px] text-center bg-transparent outline-none"
+                                    />
+                                ) : (
+                                    <span className="text-lg font-bold min-w-[30px] text-center">{set.targetReps}</span>
+                                )}
                                 {isEditing && (
                                     <button
                                         onClick={() => updateSet(exIdx, setIdx, 'targetReps', set.targetReps + 1)}
