@@ -66,6 +66,7 @@ export class WorkoutDatabase extends Dexie {
     sets!: Table<WorkoutSet>;
     templates!: Table<WorkoutTemplate>;
     scheduledWorkouts!: Table<ScheduledWorkout>;
+    deletedItems!: Table<DeletedItem>;
 
     constructor() {
         super('WorkoutDB');
@@ -122,7 +123,22 @@ export class WorkoutDatabase extends Dexie {
                 }
             });
         });
+    });
+
+        // Version 6: Add deleted items tracking
+        this.version(6).stores({
+        deletedItems: '++id, type, localId'
+    });
     }
+}
+
+export interface DeletedItem {
+    id?: number;
+    type: 'template' | 'scheduled_workout';
+    localId: number;
+    name?: string; // For templates
+    date?: string; // For scheduled workouts
+    deletedAt: Date;
 }
 
 export const db = new WorkoutDatabase();

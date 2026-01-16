@@ -872,10 +872,61 @@ const cleanupLocalDuplicates = async () => {
 };
 
 /**
+ * Process local deletions and sync to cloud
+ */
+const processDeletions = async () => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const deletedItems = await db.deletedItems.toArray();
+    if (deletedItems.length === 0) return;
+
+    console.log(`Processing ${deletedItems.length} deletions...`);
+
+    for (const item of deletedItems) {
+        try {
+            if (item.type === 'template' && item.name) {
+                // Delete template by name
+                const { error } = await supabase
+                    .from('templates')
+                    .delete()
+                    .eq('user_id', user.id)
+                    .eq('name', item.name);
+
+                if (error) throw error;
+                console.log(`Deleted cloud template: ${item.name}`);
+            } else if (item.type === 'scheduled_workout' && item.date && item.name) {
+                // Delete scheduled workout by date and template name
+                const { error } = await supabase
+                    .from('scheduled_workouts')
+                    .delete()
+                    .eq('user_id', user.id)
+                    .eq('date', item.date)
+                    .eq('template_name', item.name);
+
+                if (error) throw error;
+                console.log(`Deleted cloud scheduled workout: ${item.name} on ${item.date}`);
+            }
+
+            // Remove from local deleted items after successful cloud deletion
+            await db.deletedItems.delete(item.id!);
+        } catch (e) {
+            console.error('Error processing deletion:', e);
+        }
+    }
+};
+
+/**
  * Full sync - upload and fetch all data
  */
 export const fullCloudSync = async (): Promise<void> => {
     console.log('Starting full cloud sync...');
+
+    // Process deletions first
+    await processDeletions();
 
     // Sync user settings first
     await syncUserSettingsToSupabase();

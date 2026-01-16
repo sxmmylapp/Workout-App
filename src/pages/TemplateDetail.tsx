@@ -25,6 +25,15 @@ export const TemplateDetail: React.FC = () => {
 
     const handleDelete = async () => {
         if (confirm('Delete this template?')) {
+            if (template) {
+                // Track deletion for sync
+                await db.deletedItems.add({
+                    type: 'template',
+                    localId: template.id!,
+                    name: template.name,
+                    deletedAt: new Date()
+                });
+            }
             await db.templates.delete(Number(id));
             navigate('/templates');
         }

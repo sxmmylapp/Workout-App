@@ -332,6 +332,16 @@ export const ScheduledWorkoutDetail: React.FC = () => {
     // Delete scheduled workout
     const handleDelete = async () => {
         if (confirm(`Delete this scheduled workout?`)) {
+            if (scheduled) {
+                // Track deletion for sync
+                await db.deletedItems.add({
+                    type: 'scheduled_workout',
+                    localId: scheduled.id!,
+                    name: scheduled.templateName,
+                    date: scheduled.date,
+                    deletedAt: new Date()
+                });
+            }
             await db.scheduledWorkouts.delete(Number(id));
             navigate('/schedule');
         }
