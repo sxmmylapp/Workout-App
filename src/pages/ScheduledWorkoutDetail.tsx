@@ -348,11 +348,14 @@ export const ScheduledWorkoutDetail: React.FC = () => {
         });
 
         for (const exercise of scheduled.exercises) {
+            // Use exercise's instanceId or generate a new one
+            const instanceId = exercise.instanceId || `${exercise.exerciseId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             for (let i = 0; i < exercise.sets.length; i++) {
                 const set = exercise.sets[i];
                 await db.sets.add({
                     workoutId: String(workoutId),
                     exerciseId: exercise.exerciseId,
+                    instanceId,
                     setNumber: i + 1,
                     weight: set.targetWeight,
                     reps: set.targetReps,
