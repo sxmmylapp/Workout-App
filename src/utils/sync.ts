@@ -88,7 +88,7 @@ const getSupabaseExerciseId = async (localExerciseId: string): Promise<string | 
     if (!supabase) return null;
 
     // First, try to find the exercise in Supabase
-    const { data, error: _findError } = await supabase
+    const { data } = await supabase
         .from('exercises')
         .select('id')
         .eq('local_id', localExerciseId)

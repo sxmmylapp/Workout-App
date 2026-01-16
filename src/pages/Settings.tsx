@@ -6,15 +6,14 @@ import { useAuth } from '../contexts/AuthContext';
 
 // Rest Timer Settings Component
 const RestTimerSettings: React.FC = () => {
-    const [enabled, setEnabled] = useState(true);
-    const [defaultTime, setDefaultTime] = useState(90);
-
-    useEffect(() => {
-        const savedEnabled = localStorage.getItem('restTimerEnabled');
-        const savedTime = localStorage.getItem('restTimerDefault');
-        if (savedEnabled !== null) setEnabled(savedEnabled === 'true');
-        if (savedTime !== null) setDefaultTime(Number(savedTime));
-    }, []);
+    const [enabled, setEnabled] = useState(() => {
+        const saved = localStorage.getItem('restTimerEnabled');
+        return saved !== null ? saved === 'true' : true;
+    });
+    const [defaultTime, setDefaultTime] = useState(() => {
+        const saved = localStorage.getItem('restTimerDefault');
+        return saved !== null ? Number(saved) : 90;
+    });
 
     const handleToggle = () => {
         const newValue = !enabled;
@@ -197,13 +196,8 @@ const ListEditor: React.FC<ListEditorProps> = ({ title, items, onSave, defaultIt
 
 // Exercise Lists Settings Component
 const ExerciseListsSettings: React.FC = () => {
-    const [muscleGroups, setMuscleGroupsState] = useState<string[]>([]);
-    const [equipment, setEquipmentState] = useState<string[]>([]);
-
-    useEffect(() => {
-        setMuscleGroupsState(getMuscleGroups());
-        setEquipmentState(getEquipment());
-    }, []);
+    const [muscleGroups, setMuscleGroupsState] = useState<string[]>(() => getMuscleGroups());
+    const [equipment, setEquipmentState] = useState<string[]>(() => getEquipment());
 
     const handleSaveMuscleGroups = (items: string[]) => {
         setMuscleGroups(items);

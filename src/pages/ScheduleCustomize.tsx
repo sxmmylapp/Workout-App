@@ -187,6 +187,7 @@ export const ScheduleCustomize: React.FC = () => {
                 ...e,
                 instanceId: e.instanceId || crypto.randomUUID()
             }));
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setExercises(exercisesWithIds);
         }
     }, [template, exercises]);

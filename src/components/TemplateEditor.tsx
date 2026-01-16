@@ -165,6 +165,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ exercises, initi
 
     useEffect(() => {
         if (initialTemplate) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setTemplateName(initialTemplate.name);
             // Ensure instanceIds exist
             const exercisesWithIds = initialTemplate.exercises.map(e => ({

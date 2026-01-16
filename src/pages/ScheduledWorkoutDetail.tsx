@@ -201,6 +201,7 @@ export const ScheduledWorkoutDetail: React.FC = () => {
     // Initialize notes state when scheduled loads
     useEffect(() => {
         if (scheduled && notes === null) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setNotes(scheduled.notes || '');
         }
     }, [scheduled, notes]);

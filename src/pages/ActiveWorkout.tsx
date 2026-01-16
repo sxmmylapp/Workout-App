@@ -267,18 +267,16 @@ export const ActiveWorkout: React.FC = () => {
     const [exerciseOrder, setExerciseOrder] = useState<string[]>([]);
 
     // Rest Timer State
-    const [restTime, setRestTime] = useState(90);
-    const [restTimerEnabled, setRestTimerEnabled] = useState(true);
+    const [restTime, setRestTime] = useState(() => {
+        const saved = localStorage.getItem('restTimerDefault');
+        return saved !== null ? Number(saved) : 90;
+    });
+    const [restTimerEnabled] = useState(() => {
+        const saved = localStorage.getItem('restTimerEnabled');
+        return saved !== null ? saved !== 'false' : true;
+    });
     const [restTimeRemaining, setRestTimeRemaining] = useState<number | null>(null);
     const [isTimerRunning, setIsTimerRunning] = useState(false);
-
-    // Load rest timer settings from localStorage on mount
-    useEffect(() => {
-        const savedTime = localStorage.getItem('restTimerDefault');
-        const savedEnabled = localStorage.getItem('restTimerEnabled');
-        if (savedTime !== null) setRestTime(Number(savedTime));
-        if (savedEnabled !== null) setRestTimerEnabled(savedEnabled !== 'false');
-    }, []);
 
     const workout = useLiveQuery(() => db.workouts.get(Number(id)), [id]);
     const sets = useLiveQuery(() => db.sets.where('workoutId').equals(String(id)).toArray(), [id]);
@@ -366,6 +364,7 @@ export const ActiveWorkout: React.FC = () => {
     }, []);
 
     // Timer countdown effect - Must be before early return
+    // Timer countdown effect
     useEffect(() => {
         if (!isTimerRunning || restTimeRemaining === null) return;
 
@@ -373,7 +372,12 @@ export const ActiveWorkout: React.FC = () => {
             if ('vibrate' in navigator) {
                 navigator.vibrate([200, 100, 200]);
             }
-            stopRestTimer();
+            // Use setTimeout to avoid synchronous state update during render phase if that was the issue
+            // although this effect runs after render.
+            // The linter might be flagging the state update that triggers re-render.
+            // We'll just stop the timer.
+            setIsTimerRunning(false);
+            setRestTimeRemaining(null);
             return;
         }
 
@@ -382,7 +386,7 @@ export const ActiveWorkout: React.FC = () => {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [isTimerRunning, restTimeRemaining, stopRestTimer]);
+    }, [isTimerRunning, restTimeRemaining]);
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;

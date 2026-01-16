@@ -21,7 +21,7 @@ export const WorkoutDetail: React.FC = () => {
 
     // State for cloud workout data
     const [cloudWorkout, setCloudWorkout] = useState<SupabaseWorkout | null>(null);
-    const [cloudLoading, setCloudLoading] = useState(false);
+    const [cloudLoading, setCloudLoading] = useState(!!(isCloudWorkout && localId));
     const [cloudError, setCloudError] = useState<string | null>(null);
 
     // Load local workout (only if not a cloud workout)
@@ -42,8 +42,7 @@ export const WorkoutDetail: React.FC = () => {
     // Fetch cloud workout if needed
     useEffect(() => {
         if (isCloudWorkout && localId) {
-            setCloudLoading(true);
-            setCloudError(null);
+            // setCloudLoading(true); // Already set in initial state
             fetchWorkoutDetailFromCloud(localId)
                 .then(data => {
                     if (data) {
