@@ -1,24 +1,19 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+// Default Supabase config - safe to expose, RLS protects data
+const DEFAULT_SUPABASE_URL = 'https://cbkwesledxrbqnloglej.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNia3dlc2xlZHhyYnFubG9nbGVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzNDI1NTEsImV4cCI6MjA4MzkxODU1MX0.f_-iAUz_yGtQl2Y2ZpuE6KMqm81DXC9nQpDhrP1SfiQ';
+
 let supabaseInstance: SupabaseClient | null = null;
 
 /**
  * Get the Supabase client instance.
- * Returns null if credentials are not configured.
+ * Uses hardcoded defaults - always returns a valid client.
  */
-export const getSupabase = (): SupabaseClient | null => {
-    const url = localStorage.getItem('supabaseUrl');
-    const anonKey = localStorage.getItem('supabaseAnonKey');
-
-    if (!url || !anonKey) {
-        return null;
-    }
-
-    // Create a new instance if URL/key changed or doesn't exist
+export const getSupabase = (): SupabaseClient => {
     if (!supabaseInstance) {
-        supabaseInstance = createClient(url, anonKey);
+        supabaseInstance = createClient(DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY);
     }
-
     return supabaseInstance;
 };
 
@@ -30,10 +25,8 @@ export const resetSupabaseClient = () => {
 };
 
 /**
- * Check if Supabase is configured
+ * Check if Supabase is configured (always true now with defaults)
  */
 export const isSupabaseConfigured = (): boolean => {
-    const url = localStorage.getItem('supabaseUrl');
-    const anonKey = localStorage.getItem('supabaseAnonKey');
-    return Boolean(url && anonKey);
+    return true;
 };
