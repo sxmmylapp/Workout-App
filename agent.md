@@ -17,6 +17,7 @@ Your job is to ship correct, working software.
 * Ask when unclear
 * Prefer simple solutions
 * No speculative features
+* Always update the version if pushing to github.
 
 ## Execution
 

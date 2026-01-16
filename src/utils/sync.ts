@@ -524,6 +524,8 @@ export const syncTemplatesToSupabase = async (): Promise<{ synced: number; faile
                 });
                 if (error) throw error;
             }
+            // Mark as synced
+            await db.templates.update(template.id!, { synced: true });
             synced++;
         } catch (e) {
             console.error('Template sync error:', e);
@@ -593,6 +595,18 @@ export const fetchTemplatesFromSupabase = async (): Promise<void> => {
                     lastUsed: cloudUpdated
                 });
             }
+        }
+    }
+
+    // Remote Deletion Check
+    // If we have a local template marked as synced, but it's not in the cloud data, delete it locally
+    const cloudIds = new Set(data.map(t => t.local_id));
+    const localSyncedTemplates = localTemplates.filter(t => t.synced);
+
+    for (const template of localSyncedTemplates) {
+        if (!cloudIds.has(String(template.id))) {
+            console.log('Remote deletion detected for template:', template.name);
+            await db.templates.delete(template.id!);
         }
     }
 };
@@ -670,6 +684,8 @@ export const syncScheduledWorkoutsToSupabase = async (): Promise<{ synced: numbe
                 });
                 if (error) throw error;
             }
+            // Mark as synced
+            await db.scheduledWorkouts.update(workout.id!, { synced: true });
             synced++;
         } catch (e) {
             console.error('Scheduled workout sync error:', e);
@@ -732,6 +748,17 @@ export const fetchScheduledWorkoutsFromSupabase = async (): Promise<void> => {
                     completed: cloudWorkout.completed
                 });
             }
+        }
+    }
+
+    // Remote Deletion Check for Scheduled Workouts
+    const cloudIds = new Set(data.map(s => s.local_id));
+    const localSyncedScheduled = localScheduled.filter(s => s.synced);
+
+    for (const workout of localSyncedScheduled) {
+        if (!cloudIds.has(String(workout.id))) {
+            console.log('Remote deletion detected for scheduled workout:', workout.templateName, workout.date);
+            await db.scheduledWorkouts.delete(workout.id!);
         }
     }
 };
@@ -872,51 +899,61 @@ const cleanupLocalDuplicates = async () => {
 };
 
 /**
- * Process local deletions and sync to cloud
+ * Sync deletions to Supabase
+ * Processes the deletedItems table and removes corresponding records from cloud
  */
-const processDeletions = async () => {
+export const syncDeletionsToSupabase = async (): Promise<{ synced: number; failed: number }> => {
     const supabase = getSupabase();
-    if (!supabase) return;
+    if (!supabase) return { synced: 0, failed: 0 };
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) return { synced: 0, failed: 0 };
 
     const deletedItems = await db.deletedItems.toArray();
-    if (deletedItems.length === 0) return;
+    if (deletedItems.length === 0) return { synced: 0, failed: 0 };
 
-    console.log(`Processing ${deletedItems.length} deletions...`);
+    console.log(`Found ${deletedItems.length} deleted items to sync`);
+
+    let synced = 0;
+    let failed = 0;
 
     for (const item of deletedItems) {
         try {
-            if (item.type === 'template' && item.name) {
-                // Delete template by name
-                const { error } = await supabase
+            let error = null;
+
+            if (item.type === 'template') {
+                // For templates, we delete by local_id and user_id
+                const { error: deleteError } = await supabase
                     .from('templates')
                     .delete()
                     .eq('user_id', user.id)
-                    .eq('name', item.name);
-
-                if (error) throw error;
-                console.log(`Deleted cloud template: ${item.name}`);
-            } else if (item.type === 'scheduled_workout' && item.date && item.name) {
-                // Delete scheduled workout by date and template name
-                const { error } = await supabase
+                    .eq('local_id', String(item.localId));
+                error = deleteError;
+            } else if (item.type === 'scheduled_workout') {
+                // For scheduled workouts, we delete by local_id and user_id
+                const { error: deleteError } = await supabase
                     .from('scheduled_workouts')
                     .delete()
                     .eq('user_id', user.id)
-                    .eq('date', item.date)
-                    .eq('template_name', item.name);
-
-                if (error) throw error;
-                console.log(`Deleted cloud scheduled workout: ${item.name} on ${item.date}`);
+                    .eq('local_id', String(item.localId));
+                error = deleteError;
             }
 
-            // Remove from local deleted items after successful cloud deletion
-            await db.deletedItems.delete(item.id!);
+            if (error) {
+                console.error(`Failed to sync deletion for ${item.type} ${item.localId}:`, error);
+                failed++;
+            } else {
+                // Successfully synced deletion, remove from deletedItems
+                await db.deletedItems.delete(item.id!);
+                synced++;
+            }
         } catch (e) {
-            console.error('Error processing deletion:', e);
+            console.error(`Exception syncing deletion for ${item.type} ${item.localId}:`, e);
+            failed++;
         }
     }
+
+    return { synced, failed };
 };
 
 /**
@@ -926,7 +963,7 @@ export const fullCloudSync = async (): Promise<void> => {
     console.log('Starting full cloud sync...');
 
     // Process deletions first
-    await processDeletions();
+    await syncDeletionsToSupabase();
 
     // Sync user settings first
     await syncUserSettingsToSupabase();

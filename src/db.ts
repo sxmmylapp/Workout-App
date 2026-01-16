@@ -47,6 +47,7 @@ export interface WorkoutTemplate {
     exercises: TemplateExercise[];
     createdAt: Date;
     lastUsed?: Date;
+    synced?: boolean;
 }
 
 // Scheduled workout for calendar
@@ -58,6 +59,7 @@ export interface ScheduledWorkout {
     notes?: string;
     exercises: TemplateExercise[]; // Copy of exercises (editable)
     completed?: boolean; // Whether this was started/completed
+    synced?: boolean;
 }
 
 export class WorkoutDatabase extends Dexie {
@@ -126,6 +128,16 @@ export class WorkoutDatabase extends Dexie {
 
         // Version 6: Add deleted items tracking
         this.version(6).stores({
+            deletedItems: '++id, type, localId'
+        });
+
+        // Version 7: Add synced field to templates and scheduled workouts
+        this.version(7).stores({
+            exercises: '++id, name, *muscleGroups',
+            workouts: '++id, startTime, status, synced',
+            sets: '++id, workoutId, exerciseId, [workoutId+exerciseId]',
+            templates: '++id, name, createdAt, synced',
+            scheduledWorkouts: '++id, templateId, date, synced',
             deletedItems: '++id, type, localId'
         });
     }
