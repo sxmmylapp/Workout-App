@@ -718,13 +718,107 @@ export const fetchScheduledWorkoutsFromSupabase = async (): Promise<void> => {
     }
 };
 
+// ============================================================
+// USER SETTINGS SYNC FUNCTIONS
+// ============================================================
+
+/**
+ * Sync user settings (muscle groups, equipment, rest timer) to Supabase
+ */
+export const syncUserSettingsToSupabase = async (): Promise<void> => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Get settings from localStorage
+    const muscleGroups = JSON.parse(localStorage.getItem('customMuscleGroups') || 'null');
+    const equipment = JSON.parse(localStorage.getItem('customEquipment') || 'null');
+    const restTimerEnabled = localStorage.getItem('restTimerEnabled');
+    const restTimerDefault = localStorage.getItem('restTimerDefault');
+
+    try {
+        // Check if settings exist
+        const { data: existing } = await supabase
+            .from('user_settings')
+            .select('id')
+            .eq('user_id', user.id)
+            .single();
+
+        const settingsData = {
+            user_id: user.id,
+            muscle_groups: muscleGroups,
+            equipment: equipment,
+            rest_timer_enabled: restTimerEnabled === 'true',
+            rest_timer_seconds: restTimerDefault ? Number(restTimerDefault) : 90,
+            updated_at: new Date().toISOString()
+        };
+
+        if (existing) {
+            await supabase.from('user_settings').update(settingsData).eq('id', existing.id);
+        } else {
+            await supabase.from('user_settings').insert(settingsData);
+        }
+        console.log('User settings synced to cloud');
+    } catch (e) {
+        console.error('User settings sync error:', e);
+    }
+};
+
+/**
+ * Fetch user settings from Supabase and apply locally
+ */
+export const fetchUserSettingsFromSupabase = async (): Promise<void> => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    try {
+        const { data, error } = await supabase
+            .from('user_settings')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+
+        if (error || !data) {
+            console.log('No user settings found in cloud');
+            return;
+        }
+
+        console.log('Fetched user settings from cloud');
+
+        // Apply settings to localStorage
+        if (data.muscle_groups) {
+            localStorage.setItem('customMuscleGroups', JSON.stringify(data.muscle_groups));
+        }
+        if (data.equipment) {
+            localStorage.setItem('customEquipment', JSON.stringify(data.equipment));
+        }
+        if (data.rest_timer_enabled !== null) {
+            localStorage.setItem('restTimerEnabled', String(data.rest_timer_enabled));
+        }
+        if (data.rest_timer_seconds !== null) {
+            localStorage.setItem('restTimerDefault', String(data.rest_timer_seconds));
+        }
+    } catch (e) {
+        console.error('User settings fetch error:', e);
+    }
+};
+
 /**
  * Full sync - upload and fetch all data
  */
 export const fullCloudSync = async (): Promise<void> => {
     console.log('Starting full cloud sync...');
 
-    // Sync exercises first (dependencies)
+    // Sync user settings first
+    await syncUserSettingsToSupabase();
+    await fetchUserSettingsFromSupabase();
+
+    // Sync exercises
     await syncExercises();
 
     // Sync templates

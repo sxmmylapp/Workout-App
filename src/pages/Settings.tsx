@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Wifi, RefreshCw, CheckCircle, XCircle, Database, Timer, Plus, X, List, RotateCcw, LogOut, User } from 'lucide-react';
-import { testConnection, syncAllPendingWorkouts, fullCloudSync } from '../utils/sync';
-import { resetSupabaseClient } from '../lib/supabase';
+import { RefreshCw, Timer, Plus, X, List, RotateCcw, LogOut, User } from 'lucide-react';
+import { fullCloudSync } from '../utils/sync';
 import { getMuscleGroups, setMuscleGroups, getEquipment, setEquipment, DEFAULT_MUSCLE_GROUPS, DEFAULT_EQUIPMENT } from '../utils/exerciseLists';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -237,44 +236,12 @@ const ExerciseListsSettings: React.FC = () => {
 
 export const Settings: React.FC = () => {
     const { user, signOut } = useAuth();
-    const [supabaseUrl, setSupabaseUrl] = useState('');
-    const [supabaseKey, setSupabaseKey] = useState('');
-    const [status, setStatus] = useState('');
-    const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
-    const [testError, setTestError] = useState('');
     const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'done'>('idle');
     const [syncResult, setSyncResult] = useState('');
 
     const handleLogout = async () => {
         if (confirm('Sign out of your account?')) {
             await signOut();
-        }
-    };
-    useEffect(() => {
-        const savedUrl = localStorage.getItem('supabaseUrl');
-        const savedKey = localStorage.getItem('supabaseAnonKey');
-        if (savedUrl) setSupabaseUrl(savedUrl);
-        if (savedKey) setSupabaseKey(savedKey);
-    }, []);
-
-    const saveCredentials = () => {
-        localStorage.setItem('supabaseUrl', supabaseUrl);
-        localStorage.setItem('supabaseAnonKey', supabaseKey);
-        resetSupabaseClient(); // Reset client so it picks up new credentials
-        setStatus('Saved!');
-        setTestStatus('idle');
-        setTimeout(() => setStatus(''), 2000);
-    };
-
-    const handleTestConnection = async () => {
-        setTestStatus('testing');
-        setTestError('');
-        const result = await testConnection();
-        if (result.success) {
-            setTestStatus('success');
-        } else {
-            setTestStatus('error');
-            setTestError(result.error || 'Unknown error');
         }
     };
 
@@ -295,24 +262,6 @@ export const Settings: React.FC = () => {
             setSyncResult('');
         }, 3000);
     };
-
-    const handleForceSyncAll = async () => {
-        setSyncStatus('syncing');
-        setSyncResult('');
-        const result = await syncAllPendingWorkouts(true);
-        setSyncStatus('done');
-        if (result.synced > 0 || result.failed > 0) {
-            setSyncResult(`Force synced ${result.synced}, Failed ${result.failed}`);
-        } else {
-            setSyncResult('No workouts found');
-        }
-        setTimeout(() => {
-            setSyncStatus('idle');
-            setSyncResult('');
-        }, 3000);
-    };
-
-    const isConfigured = supabaseUrl && supabaseKey;
 
     return (
         <div className="space-y-6">
@@ -339,94 +288,23 @@ export const Settings: React.FC = () => {
                 </div>
             </div>
 
+            {/* Cloud Sync Section */}
             <div className="bg-zinc-900 p-6 rounded-xl border border-zinc-800 space-y-4">
                 <div className="flex items-center gap-2">
-                    <Database size={20} className="text-green-500" />
-                    <h3 className="font-bold text-lg">Supabase Cloud Sync</h3>
+                    <RefreshCw size={20} className="text-green-500" />
+                    <h3 className="font-bold text-lg">Cloud Sync</h3>
                 </div>
                 <p className="text-sm text-zinc-400">
-                    Connect to your Supabase project to sync workouts to the cloud.
+                    Data syncs automatically. Tap below to force a full sync of all your data.
                 </p>
-
-                <div className="space-y-3">
-                    <div>
-                        <label className="block text-sm text-zinc-400 mb-1">Project URL</label>
-                        <input
-                            type="text"
-                            value={supabaseUrl}
-                            onChange={(e) => setSupabaseUrl(e.target.value)}
-                            placeholder="https://your-project.supabase.co"
-                            className="w-full bg-zinc-800 p-3 rounded-lg text-sm border border-zinc-700 focus:border-green-500 outline-none"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm text-zinc-400 mb-1">Anon Key</label>
-                        <input
-                            type="password"
-                            value={supabaseKey}
-                            onChange={(e) => setSupabaseKey(e.target.value)}
-                            placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                            className="w-full bg-zinc-800 p-3 rounded-lg text-sm border border-zinc-700 focus:border-green-500 outline-none font-mono"
-                        />
-                    </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                    <button
-                        onClick={saveCredentials}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
-                    >
-                        <Save size={16} /> Save
-                    </button>
-                    <button
-                        onClick={handleTestConnection}
-                        disabled={testStatus === 'testing' || !isConfigured}
-                        className="bg-zinc-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-zinc-600 disabled:opacity-50"
-                    >
-                        {testStatus === 'testing' ? (
-                            <RefreshCw size={16} className="animate-spin" />
-                        ) : testStatus === 'success' ? (
-                            <CheckCircle size={16} className="text-green-500" />
-                        ) : testStatus === 'error' ? (
-                            <XCircle size={16} className="text-red-500" />
-                        ) : (
-                            <Wifi size={16} />
-                        )}
-                        Test Connection
-                    </button>
-                </div>
-
-                {status && <span className="text-green-500 text-sm">{status}</span>}
-                {testStatus === 'success' && <span className="text-green-500 text-sm block">✓ Connected to Supabase!</span>}
-                {testStatus === 'error' && <span className="text-red-500 text-sm block">✗ {testError}</span>}
-            </div>
-
-            <div className="bg-zinc-900 p-6 rounded-xl border border-zinc-800 space-y-4">
-                <h3 className="font-bold text-lg">Sync</h3>
-                <p className="text-sm text-zinc-400">
-                    Workouts sync automatically when finished. Use these to manually sync.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                    <button
-                        onClick={handleSyncNow}
-                        disabled={syncStatus === 'syncing' || !isConfigured}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 disabled:opacity-50"
-                    >
-                        <RefreshCw size={16} className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
-                        {syncStatus === 'syncing' ? 'Syncing...' : 'Sync New'}
-                    </button>
-                    <button
-                        onClick={() => handleForceSyncAll()}
-                        disabled={syncStatus === 'syncing' || !isConfigured}
-                        className="bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-yellow-700 disabled:opacity-50"
-                    >
-                        <RefreshCw size={16} className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
-                        Force Sync All
-                    </button>
-                </div>
-                <p className="text-xs text-zinc-500">
-                    "Force Sync All" re-syncs everything, even previously synced workouts.
-                </p>
+                <button
+                    onClick={handleSyncNow}
+                    disabled={syncStatus === 'syncing'}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 disabled:opacity-50"
+                >
+                    <RefreshCw size={16} className={syncStatus === 'syncing' ? 'animate-spin' : ''} />
+                    {syncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+                </button>
                 {syncResult && <span className="text-zinc-400 text-sm block">{syncResult}</span>}
             </div>
 
