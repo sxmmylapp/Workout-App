@@ -59,7 +59,7 @@ export const syncExercises = async (): Promise<{ synced: number; failed: number 
                 .upsert({
                     local_id: String(exercise.id),
                     name: exercise.name,
-                    muscle_groups: exercise.muscleGroups,
+                    muscle_group: exercise.muscleGroups,
                     equipment: exercise.equipment,
                 }, { onConflict: 'local_id' });
 
@@ -110,7 +110,7 @@ const getSupabaseExerciseId = async (localExerciseId: string): Promise<string | 
         .upsert({
             local_id: localExerciseId,
             name: localExercise.name,
-            muscle_groups: localExercise.muscleGroups,
+            muscle_group: localExercise.muscleGroups,
             equipment: localExercise.equipment,
         }, { onConflict: 'local_id' })
         .select('id')
@@ -256,7 +256,7 @@ export const fetchHistoryFromSupabase = async (): Promise<SupabaseWorkout[]> => 
                 *,
                 exercises (
                     name,
-                    muscle_groups,
+                    muscle_group,
                     equipment
                 )
             `)
@@ -339,7 +339,7 @@ export const fetchWorkoutDetailFromCloud = async (localId: string): Promise<Supa
                 *,
                 exercises (
                     name,
-                    muscle_groups,
+                    muscle_group,
                     equipment
                 )
             `)
