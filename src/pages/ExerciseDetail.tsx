@@ -13,6 +13,7 @@ export const ExerciseDetail: React.FC = () => {
     const [editForm, setEditForm] = useState({ name: '', muscleGroups: [] as string[], equipment: '' });
 
     const exercise = useLiveQuery(() => db.exercises.get(Number(id)), [id]);
+    const exercises = useLiveQuery(() => db.exercises.toArray()); // For duplicate check
 
     // Get dynamic lists
     const MUSCLE_GROUPS = getMuscleGroups();
@@ -112,6 +113,17 @@ export const ExerciseDetail: React.FC = () => {
 
     const handleSaveEdit = async () => {
         if (!editForm.name.trim()) return;
+
+        // Check for duplicate exercise name (case-insensitive), excluding current exercise
+        const trimmedName = editForm.name.trim().toLowerCase();
+        const existingExercise = exercises?.find(
+            ex => ex.name.toLowerCase() === trimmedName && ex.id !== Number(id)
+        );
+
+        if (existingExercise) {
+            alert(`Exercise "${existingExercise.name}" already exists.`);
+            return;
+        }
 
         await db.exercises.update(Number(id), {
             name: editForm.name.trim(),
@@ -248,8 +260,8 @@ export const ExerciseDetail: React.FC = () => {
                                             type="button"
                                             onClick={() => toggleMuscleGroup(mg)}
                                             className={`px-3 py-1 rounded-full text-sm transition-colors ${editForm.muscleGroups.includes(mg)
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
                                                 }`}
                                         >
                                             {mg}
