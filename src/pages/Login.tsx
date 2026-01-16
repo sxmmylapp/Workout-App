@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Dumbbell, Mail, Lock, ArrowRight, UserPlus } from 'lucide-react';
+import { isSupabaseConfigured, resetSupabaseClient } from '../lib/supabase';
+import { Dumbbell, Mail, Lock, ArrowRight, UserPlus, Database, Settings } from 'lucide-react';
 
 export const Login: React.FC = () => {
     const { signIn, signUp } = useAuth();
@@ -11,8 +12,37 @@ export const Login: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [message, setMessage] = useState<string | null>(null);
 
+    // Supabase config state
+    const [showConfig, setShowConfig] = useState(!isSupabaseConfigured());
+    const [supabaseUrl, setSupabaseUrl] = useState('');
+    const [supabaseKey, setSupabaseKey] = useState('');
+
+    useEffect(() => {
+        const savedUrl = localStorage.getItem('supabaseUrl');
+        const savedKey = localStorage.getItem('supabaseAnonKey');
+        if (savedUrl) setSupabaseUrl(savedUrl);
+        if (savedKey) setSupabaseKey(savedKey);
+    }, []);
+
+    const handleSaveConfig = () => {
+        if (supabaseUrl.trim() && supabaseKey.trim()) {
+            localStorage.setItem('supabaseUrl', supabaseUrl.trim());
+            localStorage.setItem('supabaseAnonKey', supabaseKey.trim());
+            resetSupabaseClient();
+            setShowConfig(false);
+            setMessage('Supabase configured! You can now sign in.');
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!isSupabaseConfigured()) {
+            setError('Please configure Supabase first');
+            setShowConfig(true);
+            return;
+        }
+
         setError(null);
         setMessage(null);
         setLoading(true);
@@ -46,6 +76,37 @@ export const Login: React.FC = () => {
                 <h1 className="text-3xl font-bold text-white">Workout App</h1>
                 <p className="text-zinc-500 mt-2">Track your gains, anywhere</p>
             </div>
+
+            {/* Supabase Config Section */}
+            {showConfig && (
+                <div className="w-full max-w-sm mb-6 bg-zinc-900 p-4 rounded-xl border border-zinc-800 space-y-3">
+                    <div className="flex items-center gap-2 text-green-400">
+                        <Database size={18} />
+                        <h3 className="font-bold">Connect to Supabase</h3>
+                    </div>
+                    <input
+                        type="text"
+                        value={supabaseUrl}
+                        onChange={(e) => setSupabaseUrl(e.target.value)}
+                        placeholder="Supabase URL (https://xxx.supabase.co)"
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white text-sm placeholder:text-zinc-600 focus:border-green-500 outline-none"
+                    />
+                    <input
+                        type="password"
+                        value={supabaseKey}
+                        onChange={(e) => setSupabaseKey(e.target.value)}
+                        placeholder="Anon Key"
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white text-sm placeholder:text-zinc-600 focus:border-green-500 outline-none"
+                    />
+                    <button
+                        onClick={handleSaveConfig}
+                        disabled={!supabaseUrl.trim() || !supabaseKey.trim()}
+                        className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold py-3 rounded-lg"
+                    >
+                        Save & Connect
+                    </button>
+                </div>
+            )}
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
@@ -108,7 +169,7 @@ export const Login: React.FC = () => {
             </form>
 
             {/* Toggle Sign In / Sign Up */}
-            <div className="mt-6 text-center">
+            <div className="mt-6 text-center space-y-2">
                 <button
                     onClick={() => {
                         setIsSignUp(!isSignUp);
@@ -119,6 +180,16 @@ export const Login: React.FC = () => {
                 >
                     {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
                 </button>
+
+                {!showConfig && (
+                    <button
+                        onClick={() => setShowConfig(true)}
+                        className="block mx-auto text-zinc-600 hover:text-zinc-400 text-sm flex items-center gap-1 justify-center"
+                    >
+                        <Settings size={14} />
+                        Configure Supabase
+                    </button>
+                )}
             </div>
         </div>
     );
