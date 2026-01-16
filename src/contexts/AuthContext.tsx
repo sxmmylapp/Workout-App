@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { getSupabase } from '../lib/supabase';
+import { fullCloudSync } from '../utils/sync';
 
 interface AuthContextType {
     user: User | null;
@@ -38,13 +39,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setSession(session);
             setUser(session?.user ?? null);
             setLoading(false);
+
+            // Sync data from cloud on initial session restore
+            if (session?.user) {
+                fullCloudSync().catch(console.error);
+            }
         });
 
         // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             setSession(session);
             setUser(session?.user ?? null);
             setLoading(false);
+
+            // Sync data from cloud on sign in
+            if (event === 'SIGNED_IN' && session?.user) {
+                fullCloudSync().catch(console.error);
+            }
         });
 
         return () => subscription.unsubscribe();

@@ -454,3 +454,205 @@ export const syncAllPendingWorkouts = async (forceAll: boolean = false): Promise
 
     return { synced, failed };
 };
+
+// ============================================================
+// TEMPLATE SYNC FUNCTIONS
+// ============================================================
+
+export interface SupabaseTemplate {
+    id: string;
+    local_id: string;
+    name: string;
+    exercises: unknown; // JSONB
+    created_at: string;
+    updated_at: string;
+}
+
+/**
+ * Sync all local templates to Supabase
+ */
+export const syncTemplatesToSupabase = async (): Promise<{ synced: number; failed: number }> => {
+    const supabase = getSupabase();
+    if (!supabase) return { synced: 0, failed: 0 };
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        console.log('No authenticated user for template sync');
+        return { synced: 0, failed: 0 };
+    }
+
+    const templates = await db.templates.toArray();
+    let synced = 0;
+    let failed = 0;
+
+    for (const template of templates) {
+        try {
+            const { error } = await supabase.from('templates').upsert({
+                local_id: String(template.id),
+                user_id: user.id,
+                name: template.name,
+                exercises: template.exercises,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'local_id' });
+
+            if (error) throw error;
+            synced++;
+        } catch (e) {
+            console.error('Template sync error:', e);
+            failed++;
+        }
+    }
+
+    return { synced, failed };
+};
+
+/**
+ * Fetch templates from Supabase and merge with local
+ */
+export const fetchTemplatesFromSupabase = async (): Promise<void> => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+        .from('templates')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Template fetch error:', error);
+        return;
+    }
+
+    if (!data) return;
+
+    // Merge with local - add any cloud templates not present locally
+    for (const cloudTemplate of data) {
+        const exists = await db.templates.get(Number(cloudTemplate.local_id));
+        if (!exists) {
+            await db.templates.add({
+                id: Number(cloudTemplate.local_id),
+                name: cloudTemplate.name,
+                exercises: cloudTemplate.exercises as { exerciseId: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[],
+                createdAt: new Date(cloudTemplate.created_at)
+            });
+        }
+    }
+};
+
+// ============================================================
+// SCHEDULED WORKOUT SYNC FUNCTIONS
+// ============================================================
+
+export interface SupabaseScheduledWorkout {
+    id: string;
+    local_id: string;
+    template_name: string;
+    date: string;
+    notes?: string;
+    exercises: unknown;
+    completed: boolean;
+}
+
+/**
+ * Sync all local scheduled workouts to Supabase
+ */
+export const syncScheduledWorkoutsToSupabase = async (): Promise<{ synced: number; failed: number }> => {
+    const supabase = getSupabase();
+    if (!supabase) return { synced: 0, failed: 0 };
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { synced: 0, failed: 0 };
+
+    const scheduled = await db.scheduledWorkouts.toArray();
+    let synced = 0;
+    let failed = 0;
+
+    for (const workout of scheduled) {
+        try {
+            const { error } = await supabase.from('scheduled_workouts').upsert({
+                local_id: String(workout.id),
+                user_id: user.id,
+                template_name: workout.templateName,
+                date: workout.date,
+                notes: workout.notes,
+                exercises: workout.exercises,
+                completed: workout.completed || false
+            }, { onConflict: 'local_id' });
+
+            if (error) throw error;
+            synced++;
+        } catch (e) {
+            console.error('Scheduled workout sync error:', e);
+            failed++;
+        }
+    }
+
+    return { synced, failed };
+};
+
+/**
+ * Fetch scheduled workouts from Supabase and merge with local
+ */
+export const fetchScheduledWorkoutsFromSupabase = async (): Promise<void> => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+        .from('scheduled_workouts')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: true });
+
+    if (error) {
+        console.error('Scheduled workout fetch error:', error);
+        return;
+    }
+
+    if (!data) return;
+
+    // Merge with local
+    for (const cloudWorkout of data) {
+        const exists = await db.scheduledWorkouts.get(Number(cloudWorkout.local_id));
+        if (!exists) {
+            await db.scheduledWorkouts.add({
+                id: Number(cloudWorkout.local_id),
+                templateId: 0, // Template ID not stored in cloud
+                templateName: cloudWorkout.template_name,
+                date: cloudWorkout.date,
+                notes: cloudWorkout.notes,
+                exercises: cloudWorkout.exercises as { exerciseId: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[],
+                completed: cloudWorkout.completed
+            });
+        }
+    }
+};
+
+/**
+ * Full sync - upload and fetch all data
+ */
+export const fullCloudSync = async (): Promise<void> => {
+    console.log('Starting full cloud sync...');
+
+    // Sync exercises first (dependencies)
+    await syncExercises();
+
+    // Sync templates
+    await syncTemplatesToSupabase();
+    await fetchTemplatesFromSupabase();
+
+    // Sync scheduled workouts
+    await syncScheduledWorkoutsToSupabase();
+    await fetchScheduledWorkoutsFromSupabase();
+
+    // Sync workout history
+    await syncAllPendingWorkouts(false);
+
+    console.log('Full cloud sync complete');
+};
