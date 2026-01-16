@@ -314,17 +314,22 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ exercises, initi
                         </p>
                         <div className="space-y-2 max-h-[60vh] overflow-y-auto">
                             {exercises.map(ex => {
-                                const isSelected = selectedExercises.some(e => e.exerciseId === String(ex.id));
+                                const instanceCount = selectedExercises.filter(e => e.exerciseId === String(ex.id)).length;
                                 return (
                                     <button
                                         key={ex.id}
                                         onClick={() => handleSelectExercise(String(ex.id))}
-                                        className={`w-full p-4 rounded-xl text-left transition-colors flex justify-between items-center ${isSelected
-                                            ? 'bg-blue-600 text-white'
+                                        className={`w-full p-4 rounded-xl text-left transition-colors flex justify-between items-center ${instanceCount > 0
+                                            ? 'bg-blue-600/20 border border-blue-600 text-white'
                                             : 'bg-zinc-900 hover:bg-zinc-800'
                                             }`}
                                     >
-                                        <span className="font-bold">{ex.name}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold">{ex.name}</span>
+                                            {instanceCount > 0 && (
+                                                <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">{instanceCount}×</span>
+                                            )}
+                                        </div>
                                         <span className="text-sm opacity-70">{ex.muscleGroups?.join(', ') || 'No muscle groups'}</span>
                                     </button>
                                 );
