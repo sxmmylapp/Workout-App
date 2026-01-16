@@ -198,16 +198,12 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ exercises, initi
     };
 
     const handleSelectExercise = (exerciseId: string) => {
-        const exists = selectedExercises.find(e => e.exerciseId === exerciseId);
-        if (exists) {
-            setSelectedExercises(prev => prev.filter(e => e.exerciseId !== exerciseId));
-        } else {
-            setSelectedExercises(prev => [...prev, {
-                exerciseId,
-                instanceId: crypto.randomUUID(),
-                sets: [{ targetWeight: 0, targetReps: 10 }]
-            }]);
-        }
+        // Always add a new instance (allows duplicate exercises)
+        setSelectedExercises(prev => [...prev, {
+            exerciseId,
+            instanceId: crypto.randomUUID(),
+            sets: [{ targetWeight: 0, targetReps: 10 }]
+        }]);
     };
 
     const handleAddSet = (exerciseIndex: number) => {
