@@ -90,6 +90,11 @@ const ListEditor: React.FC<ListEditorProps> = ({ title, items, onSave, defaultIt
     const [newItem, setNewItem] = useState('');
     const [isExpanded, setIsExpanded] = useState(false);
 
+    // Sync localItems when items prop changes (e.g., after parent loads from localStorage)
+    useEffect(() => {
+        setLocalItems(items);
+    }, [items]);
+
     const handleAdd = () => {
         const trimmed = newItem.trim();
         if (trimmed && !localItems.includes(trimmed)) {
