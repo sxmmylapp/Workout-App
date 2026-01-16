@@ -38,6 +38,17 @@ export const Exercises: React.FC = () => {
     const handleAddExercise = async () => {
         if (!newExercise.name.trim()) return;
 
+        // Check for duplicate exercise name (case-insensitive)
+        const trimmedName = newExercise.name.trim().toLowerCase();
+        const existingExercise = exercises?.find(
+            ex => ex.name.toLowerCase() === trimmedName
+        );
+
+        if (existingExercise) {
+            alert(`Exercise "${existingExercise.name}" already exists.`);
+            return;
+        }
+
         await db.exercises.add({
             name: newExercise.name.trim(),
             muscleGroups: newExercise.muscleGroups.length > 0 ? newExercise.muscleGroups : ['Chest'],
@@ -239,8 +250,8 @@ export const Exercises: React.FC = () => {
                                             type="button"
                                             onClick={() => toggleMuscleGroup(mg)}
                                             className={`px-3 py-1 rounded-full text-sm transition-colors ${newExercise.muscleGroups.includes(mg)
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
                                                 }`}
                                         >
                                             {mg}
