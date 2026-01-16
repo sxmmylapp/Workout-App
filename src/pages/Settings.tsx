@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Wifi, RefreshCw, CheckCircle, XCircle, Database, Timer, Plus, X, List, RotateCcw, LogOut, User } from 'lucide-react';
-import { testConnection, syncAllPendingWorkouts } from '../utils/sync';
+import { testConnection, syncAllPendingWorkouts, fullCloudSync } from '../utils/sync';
 import { resetSupabaseClient } from '../lib/supabase';
 import { getMuscleGroups, setMuscleGroups, getEquipment, setEquipment, DEFAULT_MUSCLE_GROUPS, DEFAULT_EQUIPMENT } from '../utils/exerciseLists';
 import { useAuth } from '../contexts/AuthContext';
@@ -281,12 +281,14 @@ export const Settings: React.FC = () => {
     const handleSyncNow = async () => {
         setSyncStatus('syncing');
         setSyncResult('');
-        const result = await syncAllPendingWorkouts();
-        setSyncStatus('done');
-        if (result.synced > 0 || result.failed > 0) {
-            setSyncResult(`Synced ${result.synced}, Failed ${result.failed}`);
-        } else {
-            setSyncResult('Nothing to sync');
+        try {
+            await fullCloudSync();
+            setSyncStatus('done');
+            setSyncResult('Full sync complete!');
+        } catch (e) {
+            setSyncStatus('done');
+            setSyncResult('Sync failed - check console');
+            console.error('Sync error:', e);
         }
         setTimeout(() => {
             setSyncStatus('idle');
