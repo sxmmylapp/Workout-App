@@ -35,7 +35,7 @@ const AddExerciseModal: React.FC<AddExerciseModalProps> = ({ exercises, onAdd, o
 
     const filteredExercises = exercises.filter(ex =>
         ex.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ex.muscleGroup.toLowerCase().includes(searchQuery.toLowerCase())
+        ex.muscleGroups.some(mg => mg.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
     return (
@@ -79,7 +79,7 @@ const AddExerciseModal: React.FC<AddExerciseModalProps> = ({ exercises, onAdd, o
                         className="w-full p-4 bg-zinc-900 rounded-xl text-left hover:bg-zinc-800 transition-colors flex justify-between items-center"
                     >
                         <span className="font-bold">{ex.name}</span>
-                        <span className="text-xs text-zinc-500">{ex.muscleGroup}</span>
+                        <span className="text-xs text-zinc-500">{ex.muscleGroups?.join(', ')}</span>
                     </button>
                 ))}
 

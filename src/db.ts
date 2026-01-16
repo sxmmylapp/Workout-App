@@ -3,7 +3,7 @@ import Dexie, { type Table } from 'dexie';
 export interface Exercise {
     id?: number;
     name: string;
-    muscleGroup: string; // e.g., "Chest", "Back", "Legs"
+    muscleGroups: string[]; // e.g., ["Chest", "Shoulders"] - supports multiple muscle groups
     equipment: string; // e.g., "Barbell", "Dumbbell", "Machine"
 }
 
@@ -99,8 +99,29 @@ export class WorkoutDatabase extends Dexie {
             templates: '++id, name, createdAt',
             scheduledWorkouts: '++id, templateId, date'
         });
+
+        // Version 5: Change muscleGroup to muscleGroups array (multiEntry index)
+        this.version(5).stores({
+            exercises: '++id, name, *muscleGroups',
+            workouts: '++id, startTime, status, synced',
+            sets: '++id, workoutId, exerciseId, [workoutId+exerciseId]',
+            templates: '++id, name, createdAt',
+            scheduledWorkouts: '++id, templateId, date'
+        }).upgrade(tx => {
+            // Migrate exercises: convert muscleGroup string to muscleGroups array
+            return tx.table('exercises').toCollection().modify(exercise => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const oldMuscleGroup = (exercise as any).muscleGroup;
+                if (oldMuscleGroup && typeof oldMuscleGroup === 'string') {
+                    exercise.muscleGroups = [oldMuscleGroup];
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    delete (exercise as any).muscleGroup;
+                } else if (!exercise.muscleGroups) {
+                    exercise.muscleGroups = [];
+                }
+            });
+        });
     }
 }
 
 export const db = new WorkoutDatabase();
-

@@ -2,16 +2,16 @@ import { useEffect } from 'react';
 import { db } from '../db';
 
 const DEFAULT_EXERCISES = [
-    { name: 'Bench Press', muscleGroup: 'Chest', equipment: 'Barbell' },
-    { name: 'Squat', muscleGroup: 'Legs', equipment: 'Barbell' },
-    { name: 'Deadlift', muscleGroup: 'Back', equipment: 'Barbell' },
-    { name: 'Overhead Press', muscleGroup: 'Shoulders', equipment: 'Barbell' },
-    { name: 'Pull Up', muscleGroup: 'Back', equipment: 'Bodyweight' },
-    { name: 'Dumbbell Row', muscleGroup: 'Back', equipment: 'Dumbbell' },
-    { name: 'Dumbbell Curl', muscleGroup: 'Biceps', equipment: 'Dumbbell' },
-    { name: 'Tricep Extension', muscleGroup: 'Triceps', equipment: 'Cable' },
-    { name: 'Leg Press', muscleGroup: 'Legs', equipment: 'Machine' },
-    { name: 'Lat Pulldown', muscleGroup: 'Back', equipment: 'Machine' },
+    { name: 'Bench Press', muscleGroups: ['Chest', 'Triceps', 'Shoulders'], equipment: 'Barbell' },
+    { name: 'Squat', muscleGroups: ['Legs', 'Glutes', 'Core'], equipment: 'Barbell' },
+    { name: 'Deadlift', muscleGroups: ['Back', 'Legs', 'Glutes', 'Core'], equipment: 'Barbell' },
+    { name: 'Overhead Press', muscleGroups: ['Shoulders', 'Triceps'], equipment: 'Barbell' },
+    { name: 'Pull Up', muscleGroups: ['Back', 'Biceps'], equipment: 'Bodyweight' },
+    { name: 'Dumbbell Row', muscleGroups: ['Back', 'Biceps'], equipment: 'Dumbbell' },
+    { name: 'Dumbbell Curl', muscleGroups: ['Biceps'], equipment: 'Dumbbell' },
+    { name: 'Tricep Extension', muscleGroups: ['Triceps'], equipment: 'Cable' },
+    { name: 'Leg Press', muscleGroups: ['Legs', 'Glutes'], equipment: 'Machine' },
+    { name: 'Lat Pulldown', muscleGroups: ['Back', 'Biceps'], equipment: 'Machine' },
 ];
 
 export function useSeedData() {

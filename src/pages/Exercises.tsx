@@ -9,7 +9,7 @@ export const Exercises: React.FC = () => {
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [newExercise, setNewExercise] = useState({ name: '', muscleGroup: 'Chest', equipment: 'Barbell' });
+    const [newExercise, setNewExercise] = useState({ name: '', muscleGroups: [] as string[], equipment: 'Barbell' });
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
 
@@ -22,20 +22,29 @@ export const Exercises: React.FC = () => {
     // Filter exercises based on search
     const filteredExercises = exercises?.filter(ex =>
         ex.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ex.muscleGroup.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ex.muscleGroups.some(mg => mg.toLowerCase().includes(searchQuery.toLowerCase())) ||
         ex.equipment.toLowerCase().includes(searchQuery.toLowerCase())
     ) || [];
+
+    const toggleMuscleGroup = (mg: string) => {
+        const current = newExercise.muscleGroups;
+        if (current.includes(mg)) {
+            setNewExercise({ ...newExercise, muscleGroups: current.filter(m => m !== mg) });
+        } else {
+            setNewExercise({ ...newExercise, muscleGroups: [...current, mg] });
+        }
+    };
 
     const handleAddExercise = async () => {
         if (!newExercise.name.trim()) return;
 
         await db.exercises.add({
             name: newExercise.name.trim(),
-            muscleGroup: newExercise.muscleGroup,
+            muscleGroups: newExercise.muscleGroups.length > 0 ? newExercise.muscleGroups : ['Chest'],
             equipment: newExercise.equipment,
         });
 
-        setNewExercise({ name: '', muscleGroup: 'Chest', equipment: 'Barbell' });
+        setNewExercise({ name: '', muscleGroups: [], equipment: 'Barbell' });
         setIsAddModalOpen(false);
     };
 
@@ -174,7 +183,7 @@ export const Exercises: React.FC = () => {
                             )}
                             <div>
                                 <h3 className="font-medium">{ex.name}</h3>
-                                <p className="text-xs text-zinc-500">{ex.muscleGroup}</p>
+                                <p className="text-xs text-zinc-500">{ex.muscleGroups.join(', ')}</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -222,16 +231,25 @@ export const Exercises: React.FC = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm text-zinc-400 mb-1">Muscle Group</label>
-                                <select
-                                    value={newExercise.muscleGroup}
-                                    onChange={(e) => setNewExercise({ ...newExercise, muscleGroup: e.target.value })}
-                                    className="w-full bg-zinc-800 p-3 rounded-lg border border-zinc-700 focus:border-blue-500 outline-none"
-                                >
+                                <label className="block text-sm text-zinc-400 mb-2">Muscle Groups</label>
+                                <div className="flex flex-wrap gap-2">
                                     {MUSCLE_GROUPS.map(mg => (
-                                        <option key={mg} value={mg}>{mg}</option>
+                                        <button
+                                            key={mg}
+                                            type="button"
+                                            onClick={() => toggleMuscleGroup(mg)}
+                                            className={`px-3 py-1 rounded-full text-sm transition-colors ${newExercise.muscleGroups.includes(mg)
+                                                    ? 'bg-blue-600 text-white'
+                                                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                                                }`}
+                                        >
+                                            {mg}
+                                        </button>
                                     ))}
-                                </select>
+                                </div>
+                                {newExercise.muscleGroups.length === 0 && (
+                                    <p className="text-xs text-zinc-500 mt-1">Select at least one muscle group</p>
+                                )}
                             </div>
 
                             <div>
@@ -251,7 +269,7 @@ export const Exercises: React.FC = () => {
                         <div className="flex gap-3 mt-6">
                             <button
                                 onClick={() => {
-                                    setNewExercise({ name: '', muscleGroup: 'Chest', equipment: 'Barbell' });
+                                    setNewExercise({ name: '', muscleGroups: [], equipment: 'Barbell' });
                                     setIsAddModalOpen(false);
                                 }}
                                 className="flex-1 py-3 rounded-lg bg-zinc-800 text-zinc-400 font-bold hover:bg-zinc-700"

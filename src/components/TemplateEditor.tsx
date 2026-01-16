@@ -152,7 +152,7 @@ const SortableExerciseCard: React.FC<SortableExerciseCardProps> = ({
 };
 
 interface TemplateEditorProps {
-    exercises: { id?: number; name: string; muscleGroup: string }[];
+    exercises: { id?: number; name: string; muscleGroups: string[] }[];
     initialTemplate?: WorkoutTemplate;
     onClose: () => void;
     onSave: () => void;
@@ -329,7 +329,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ exercises, initi
                                             }`}
                                     >
                                         <span className="font-bold">{ex.name}</span>
-                                        <span className="text-sm opacity-70">{ex.muscleGroup}</span>
+                                        <span className="text-sm opacity-70">{ex.muscleGroups?.join(', ') || 'No muscle groups'}</span>
                                     </button>
                                 );
                             })}

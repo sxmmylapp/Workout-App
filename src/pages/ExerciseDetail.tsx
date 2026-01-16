@@ -10,7 +10,7 @@ export const ExerciseDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editForm, setEditForm] = useState({ name: '', muscleGroup: '', equipment: '' });
+    const [editForm, setEditForm] = useState({ name: '', muscleGroups: [] as string[], equipment: '' });
 
     const exercise = useLiveQuery(() => db.exercises.get(Number(id)), [id]);
 
@@ -95,10 +95,19 @@ export const ExerciseDetail: React.FC = () => {
     const openEditModal = () => {
         setEditForm({
             name: exercise.name,
-            muscleGroup: exercise.muscleGroup,
+            muscleGroups: exercise.muscleGroups || [],
             equipment: exercise.equipment,
         });
         setIsEditModalOpen(true);
+    };
+
+    const toggleMuscleGroup = (mg: string) => {
+        const current = editForm.muscleGroups;
+        if (current.includes(mg)) {
+            setEditForm({ ...editForm, muscleGroups: current.filter(m => m !== mg) });
+        } else {
+            setEditForm({ ...editForm, muscleGroups: [...current, mg] });
+        }
     };
 
     const handleSaveEdit = async () => {
@@ -106,7 +115,7 @@ export const ExerciseDetail: React.FC = () => {
 
         await db.exercises.update(Number(id), {
             name: editForm.name.trim(),
-            muscleGroup: editForm.muscleGroup,
+            muscleGroups: editForm.muscleGroups.length > 0 ? editForm.muscleGroups : ['Chest'],
             equipment: editForm.equipment,
         });
 
@@ -123,7 +132,7 @@ export const ExerciseDetail: React.FC = () => {
                     </button>
                     <h1 className="text-2xl font-bold">{exercise.name}</h1>
                     <div className="flex items-center gap-2 mt-1">
-                        <span className="text-sm text-zinc-500">{exercise.muscleGroup}</span>
+                        <span className="text-sm text-zinc-500">{exercise.muscleGroups?.join(', ') || 'No muscle groups'}</span>
                         <span className="text-zinc-700">•</span>
                         <span className="text-xs bg-zinc-800 px-2 py-1 rounded text-zinc-400">{exercise.equipment}</span>
                     </div>
@@ -231,16 +240,22 @@ export const ExerciseDetail: React.FC = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm text-zinc-400 mb-1">Muscle Group</label>
-                                <select
-                                    value={editForm.muscleGroup}
-                                    onChange={(e) => setEditForm({ ...editForm, muscleGroup: e.target.value })}
-                                    className="w-full bg-zinc-800 p-3 rounded-lg border border-zinc-700 focus:border-blue-500 outline-none"
-                                >
+                                <label className="block text-sm text-zinc-400 mb-2">Muscle Groups</label>
+                                <div className="flex flex-wrap gap-2">
                                     {MUSCLE_GROUPS.map(mg => (
-                                        <option key={mg} value={mg}>{mg}</option>
+                                        <button
+                                            key={mg}
+                                            type="button"
+                                            onClick={() => toggleMuscleGroup(mg)}
+                                            className={`px-3 py-1 rounded-full text-sm transition-colors ${editForm.muscleGroups.includes(mg)
+                                                    ? 'bg-blue-600 text-white'
+                                                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                                                }`}
+                                        >
+                                            {mg}
+                                        </button>
                                     ))}
-                                </select>
+                                </div>
                             </div>
 
                             <div>
