@@ -529,6 +529,7 @@ export const syncTemplatesToSupabase = async (): Promise<{ synced: number; faile
 
 /**
  * Fetch templates from Supabase and merge with local
+ * Updates existing templates if cloud version is newer
  */
 export const fetchTemplatesFromSupabase = async (): Promise<void> => {
     const supabase = getSupabase();
@@ -546,7 +547,7 @@ export const fetchTemplatesFromSupabase = async (): Promise<void> => {
         .from('templates')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('updated_at', { ascending: false });
 
     if (error) {
         console.error('Template fetch error:', error);
@@ -559,18 +560,32 @@ export const fetchTemplatesFromSupabase = async (): Promise<void> => {
 
     // Get local templates for comparison
     const localTemplates = await db.templates.toArray();
-    const localNames = new Set(localTemplates.map(t => t.name.toLowerCase()));
+    const localByName = new Map(localTemplates.map(t => [t.name.toLowerCase(), t]));
 
-    // Merge with local - add cloud templates not present locally (by name)
     for (const cloudTemplate of data) {
-        // Check if template with same name already exists locally
-        if (!localNames.has(cloudTemplate.name.toLowerCase())) {
+        const localTemplate = localByName.get(cloudTemplate.name.toLowerCase());
+
+        if (!localTemplate) {
+            // Add new template from cloud
             console.log('Adding cloud template locally:', cloudTemplate.name);
             await db.templates.add({
                 name: cloudTemplate.name,
                 exercises: cloudTemplate.exercises as { exerciseId: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[],
-                createdAt: new Date(cloudTemplate.created_at)
+                createdAt: new Date(cloudTemplate.created_at),
+                lastUsed: cloudTemplate.updated_at ? new Date(cloudTemplate.updated_at) : undefined
             });
+        } else {
+            // Update existing template if cloud is newer
+            const cloudUpdated = new Date(cloudTemplate.updated_at || cloudTemplate.created_at);
+            const localUpdated = localTemplate.lastUsed || localTemplate.createdAt;
+
+            if (cloudUpdated > localUpdated) {
+                console.log('Updating local template from cloud:', cloudTemplate.name);
+                await db.templates.update(localTemplate.id!, {
+                    exercises: cloudTemplate.exercises as { exerciseId: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[],
+                    lastUsed: cloudUpdated
+                });
+            }
         }
     }
 };
@@ -670,19 +685,35 @@ export const fetchScheduledWorkoutsFromSupabase = async (): Promise<void> => {
 
     if (!data) return;
 
-    // Merge with local
+    // Get local scheduled workouts for comparison
+    const localScheduled = await db.scheduledWorkouts.toArray();
+    const localByDateName = new Map(localScheduled.map(s => [`${s.date}-${s.templateName.toLowerCase()}`, s]));
+
     for (const cloudWorkout of data) {
-        const exists = await db.scheduledWorkouts.get(Number(cloudWorkout.local_id));
-        if (!exists) {
+        const key = `${cloudWorkout.date}-${cloudWorkout.template_name.toLowerCase()}`;
+        const localWorkout = localByDateName.get(key);
+
+        if (!localWorkout) {
+            // Add new scheduled workout from cloud
+            console.log('Adding cloud scheduled workout locally:', cloudWorkout.template_name, cloudWorkout.date);
             await db.scheduledWorkouts.add({
-                id: Number(cloudWorkout.local_id),
-                templateId: 0, // Template ID not stored in cloud
+                templateId: 0,
                 templateName: cloudWorkout.template_name,
                 date: cloudWorkout.date,
                 notes: cloudWorkout.notes,
                 exercises: cloudWorkout.exercises as { exerciseId: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[],
                 completed: cloudWorkout.completed
             });
+        } else {
+            // Update if cloud has different data
+            if (JSON.stringify(cloudWorkout.exercises) !== JSON.stringify(localWorkout.exercises)) {
+                console.log('Updating local scheduled workout from cloud:', cloudWorkout.template_name);
+                await db.scheduledWorkouts.update(localWorkout.id!, {
+                    exercises: cloudWorkout.exercises as { exerciseId: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[],
+                    notes: cloudWorkout.notes,
+                    completed: cloudWorkout.completed
+                });
+            }
         }
     }
 };
