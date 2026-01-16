@@ -123,12 +123,11 @@ export class WorkoutDatabase extends Dexie {
                 }
             });
         });
-    });
 
         // Version 6: Add deleted items tracking
         this.version(6).stores({
-        deletedItems: '++id, type, localId'
-    });
+            deletedItems: '++id, type, localId'
+        });
     }
 }
 
