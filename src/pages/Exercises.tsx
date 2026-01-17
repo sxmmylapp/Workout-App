@@ -204,7 +204,11 @@ export const Exercises: React.FC = () => {
                             )}
                             <div>
                                 <h3 className="font-medium">{ex.name}</h3>
-                                <p className="text-xs text-zinc-500">{ex.muscleGroups.join(', ')}</p>
+                                <p className="text-xs text-zinc-500">
+                                    {Array.isArray(ex.muscleGroups)
+                                        ? ex.muscleGroups.join(', ')
+                                        : (typeof ex.muscleGroups === 'string' ? ex.muscleGroups : 'Other')}
+                                </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
