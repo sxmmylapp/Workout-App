@@ -778,8 +778,8 @@ export const syncUserSettingsToSupabase = async (): Promise<void> => {
     if (!user) return;
 
     // Get settings from localStorage
-    const muscleGroups = JSON.parse(localStorage.getItem('customMuscleGroups') || 'null');
-    const equipment = JSON.parse(localStorage.getItem('customEquipment') || 'null');
+    const muscleGroups = JSON.parse(localStorage.getItem('muscleGroups') || 'null');
+    const equipment = JSON.parse(localStorage.getItem('equipment') || 'null');
     const restTimerEnabled = localStorage.getItem('restTimerEnabled');
     const restTimerDefault = localStorage.getItem('restTimerDefault');
 
@@ -837,10 +837,10 @@ export const fetchUserSettingsFromSupabase = async (): Promise<void> => {
 
         // Apply settings to localStorage
         if (data.muscle_groups) {
-            localStorage.setItem('customMuscleGroups', JSON.stringify(data.muscle_groups));
+            localStorage.setItem('muscleGroups', JSON.stringify(data.muscle_groups));
         }
         if (data.equipment) {
-            localStorage.setItem('customEquipment', JSON.stringify(data.equipment));
+            localStorage.setItem('equipment', JSON.stringify(data.equipment));
         }
         if (data.rest_timer_enabled !== null) {
             localStorage.setItem('restTimerEnabled', String(data.rest_timer_enabled));
