@@ -80,6 +80,74 @@ export const syncExercises = async (): Promise<{ synced: number; failed: number 
 };
 
 /**
+ * Fetch exercises from Supabase and merge with local
+ * Adds new exercises from cloud that don't exist locally
+ */
+export const fetchExercisesFromSupabase = async (): Promise<void> => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    console.log('Fetching exercises from cloud...');
+
+    const { data, error } = await supabase
+        .from('exercises')
+        .select('*')
+        .order('name', { ascending: true });
+
+    if (error) {
+        console.error('Exercise fetch error:', error);
+        return;
+    }
+
+    if (!data || data.length === 0) {
+        console.log('No exercises found in cloud');
+        return;
+    }
+
+    console.log('Fetched exercises from cloud:', data.length);
+
+    // Get local exercises for comparison
+    const localExercises = await db.exercises.toArray();
+    const localByName = new Map(localExercises.map(e => [e.name.toLowerCase(), e]));
+
+    let added = 0;
+    let updated = 0;
+
+    for (const cloudExercise of data) {
+        const localExercise = localByName.get(cloudExercise.name?.toLowerCase());
+
+        if (!localExercise) {
+            // Add new exercise from cloud
+            console.log('Adding cloud exercise locally:', cloudExercise.name);
+            await db.exercises.add({
+                name: cloudExercise.name,
+                muscleGroups: Array.isArray(cloudExercise.muscle_group)
+                    ? cloudExercise.muscle_group
+                    : [cloudExercise.muscle_group || 'Other'],
+                equipment: cloudExercise.equipment || 'Other'
+            });
+            added++;
+        } else {
+            // Update if cloud has different data (e.g., muscle groups changed)
+            const cloudMuscleGroups = Array.isArray(cloudExercise.muscle_group)
+                ? cloudExercise.muscle_group
+                : [cloudExercise.muscle_group || 'Other'];
+
+            if (JSON.stringify(localExercise.muscleGroups) !== JSON.stringify(cloudMuscleGroups) ||
+                localExercise.equipment !== cloudExercise.equipment) {
+                await db.exercises.update(localExercise.id!, {
+                    muscleGroups: cloudMuscleGroups,
+                    equipment: cloudExercise.equipment || localExercise.equipment
+                });
+                updated++;
+            }
+        }
+    }
+
+    console.log(`Fetched exercises: ${added} added, ${updated} updated`);
+};
+
+/**
  * Get the Supabase exercise UUID for a local exercise ID.
  * Creates a mapping by syncing the exercise first if needed.
  */
@@ -1034,6 +1102,7 @@ export const fullCloudSync = async (): Promise<void> => {
 
     // Sync exercises
     await syncExercises();
+    await fetchExercisesFromSupabase();
 
     // Sync templates
     await syncTemplatesToSupabase();
