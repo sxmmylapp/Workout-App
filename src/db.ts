@@ -153,3 +153,61 @@ export interface DeletedItem {
 }
 
 export const db = new WorkoutDatabase();
+
+/**
+ * Cleanup function to fix corrupted muscle groups data
+ * Some muscle groups may have been stored as stringified arrays like '["Chest","Back"]'
+ * This function normalizes them to proper arrays
+ */
+export const cleanupMuscleGroups = async (): Promise<number> => {
+    const exercises = await db.exercises.toArray();
+    let fixed = 0;
+
+    for (const exercise of exercises) {
+        let needsUpdate = false;
+        let normalizedMuscleGroups: string[] = [];
+
+        if (typeof exercise.muscleGroups === 'string') {
+            // It's a stringified array or single string
+            try {
+                const parsed = JSON.parse(exercise.muscleGroups);
+                if (Array.isArray(parsed)) {
+                    normalizedMuscleGroups = parsed;
+                    needsUpdate = true;
+                }
+            } catch {
+                // It's just a plain string, wrap in array
+                normalizedMuscleGroups = [exercise.muscleGroups];
+                needsUpdate = true;
+            }
+        } else if (Array.isArray(exercise.muscleGroups)) {
+            // Check if any element is itself a stringified array
+            normalizedMuscleGroups = exercise.muscleGroups.flatMap(mg => {
+                if (typeof mg === 'string' && mg.startsWith('[')) {
+                    try {
+                        const parsed = JSON.parse(mg);
+                        if (Array.isArray(parsed)) {
+                            needsUpdate = true;
+                            return parsed;
+                        }
+                    } catch {
+                        // Keep as-is
+                    }
+                }
+                return mg;
+            });
+        }
+
+        if (needsUpdate && exercise.id) {
+            await db.exercises.update(exercise.id, { muscleGroups: normalizedMuscleGroups });
+            fixed++;
+            console.log(`Fixed muscle groups for "${exercise.name}":`, normalizedMuscleGroups);
+        }
+    }
+
+    if (fixed > 0) {
+        console.log(`Cleaned up muscle groups for ${fixed} exercises`);
+    }
+
+    return fixed;
+};

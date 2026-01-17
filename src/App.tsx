@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Layout } from './components/Layout';
 import { useSeedData } from './hooks/useSeedData';
+import { cleanupMuscleGroups } from './db';
 import { Home } from './pages/Home';
 import { Exercises } from './pages/Exercises';
 import { ExerciseDetail } from './pages/ExerciseDetail';
@@ -39,6 +40,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 function AppContent() {
   useSeedData();
   const { user, loading } = useAuth();
+
+  // Run data cleanup on app startup
+  useEffect(() => {
+    cleanupMuscleGroups();
+  }, []);
 
   if (loading) {
     return (
