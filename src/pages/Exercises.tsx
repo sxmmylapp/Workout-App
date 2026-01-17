@@ -74,6 +74,16 @@ export const Exercises: React.FC = () => {
         if (!confirm(`Delete ${selectedIds.size} exercise${selectedIds.size > 1 ? 's' : ''}?`)) return;
 
         for (const id of selectedIds) {
+            const exercise = exercises?.find(e => e.id === id);
+            if (exercise) {
+                // Track deletion for sync
+                await db.deletedItems.add({
+                    type: 'exercise',
+                    localId: exercise.id!,
+                    name: exercise.name,
+                    deletedAt: new Date()
+                });
+            }
             await db.exercises.delete(id);
         }
 

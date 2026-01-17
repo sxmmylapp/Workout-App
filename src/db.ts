@@ -145,9 +145,9 @@ export class WorkoutDatabase extends Dexie {
 
 export interface DeletedItem {
     id?: number;
-    type: 'template' | 'scheduled_workout';
+    type: 'template' | 'scheduled_workout' | 'exercise';
     localId: number;
-    name?: string; // For templates
+    name?: string; // For templates and exercises
     date?: string; // For scheduled workouts
     deletedAt: Date;
 }

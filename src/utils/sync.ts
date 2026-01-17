@@ -459,6 +459,41 @@ export const syncAllPendingWorkouts = async (forceAll: boolean = false): Promise
 // TEMPLATE SYNC FUNCTIONS
 // ============================================================
 
+/**
+ * Convert template exercises from local IDs to exercise names for cloud storage
+ * This allows templates to work across devices where local IDs differ
+ */
+const convertExercisesToNamesForCloud = async (exercises: { exerciseId: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[]) => {
+    const localExercises = await db.exercises.toArray();
+    const idToName = new Map(localExercises.map(e => [String(e.id), e.name]));
+
+    return exercises.map(ex => ({
+        ...ex,
+        exerciseName: idToName.get(ex.exerciseId) || 'Unknown Exercise'
+    }));
+};
+
+/**
+ * Convert template exercises from cloud (with names) to local IDs
+ * Maps exercise names back to local IDs for this device
+ */
+const convertExercisesFromCloud = async (exercises: { exerciseId: string; exerciseName?: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[]) => {
+    const localExercises = await db.exercises.toArray();
+    const nameToId = new Map(localExercises.map(e => [e.name.toLowerCase(), String(e.id)]));
+
+    return exercises.map(ex => {
+        // If we have an exerciseName from cloud, use it to find the local ID
+        if (ex.exerciseName) {
+            const localId = nameToId.get(ex.exerciseName.toLowerCase());
+            if (localId) {
+                return { ...ex, exerciseId: localId };
+            }
+        }
+        // Fall back to original exerciseId if no name match found
+        return ex;
+    });
+};
+
 export interface SupabaseTemplate {
     id: string;
     local_id: string;
@@ -467,6 +502,7 @@ export interface SupabaseTemplate {
     created_at: string;
     updated_at: string;
 }
+
 
 /**
  * Sync all local templates to Supabase
@@ -497,11 +533,13 @@ export const syncTemplatesToSupabase = async (): Promise<{ synced: number; faile
             if (existing && existing.length > 0) {
                 // Update the first match
                 const firstId = existing[0].id;
+                // Convert exercise IDs to names for cross-device compatibility
+                const exercisesWithNames = await convertExercisesToNamesForCloud(template.exercises);
                 const { error } = await supabase
                     .from('templates')
                     .update({
                         local_id: String(template.id), // Update local_id to match current device
-                        exercises: template.exercises,
+                        exercises: exercisesWithNames,
                         updated_at: new Date().toISOString()
                     })
                     .eq('id', firstId);
@@ -515,11 +553,13 @@ export const syncTemplatesToSupabase = async (): Promise<{ synced: number; faile
                 }
             } else {
                 // Insert new
+                // Convert exercise IDs to names for cross-device compatibility
+                const exercisesWithNames = await convertExercisesToNamesForCloud(template.exercises);
                 const { error } = await supabase.from('templates').insert({
                     local_id: String(template.id),
                     user_id: user.id,
                     name: template.name,
-                    exercises: template.exercises,
+                    exercises: exercisesWithNames,
                     updated_at: new Date().toISOString()
                 });
                 if (error) throw error;
@@ -577,9 +617,12 @@ export const fetchTemplatesFromSupabase = async (): Promise<void> => {
         if (!localTemplate) {
             // Add new template from cloud
             console.log('Adding cloud template locally:', cloudTemplate.name);
+            // Convert exercise names from cloud to local IDs
+            const cloudExercises = cloudTemplate.exercises as { exerciseId: string; exerciseName?: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[];
+            const mappedExercises = await convertExercisesFromCloud(cloudExercises);
             await db.templates.add({
                 name: cloudTemplate.name,
-                exercises: cloudTemplate.exercises as { exerciseId: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[],
+                exercises: mappedExercises,
                 createdAt: new Date(cloudTemplate.created_at),
                 lastUsed: cloudTemplate.updated_at ? new Date(cloudTemplate.updated_at) : undefined
             });
@@ -590,8 +633,11 @@ export const fetchTemplatesFromSupabase = async (): Promise<void> => {
 
             if (cloudUpdated > localUpdated) {
                 console.log('Updating local template from cloud:', cloudTemplate.name);
+                // Convert exercise names from cloud to local IDs
+                const cloudExercises = cloudTemplate.exercises as { exerciseId: string; exerciseName?: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[];
+                const mappedExercises = await convertExercisesFromCloud(cloudExercises);
                 await db.templates.update(localTemplate.id!, {
-                    exercises: cloudTemplate.exercises as { exerciseId: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[],
+                    exercises: mappedExercises,
                     lastUsed: cloudUpdated
                 });
             }
@@ -655,12 +701,14 @@ export const syncScheduledWorkoutsToSupabase = async (): Promise<{ synced: numbe
             if (existing && existing.length > 0) {
                 // Update first match
                 const firstId = existing[0].id;
+                // Convert exercise IDs to names for cross-device compatibility
+                const exercisesWithNames = await convertExercisesToNamesForCloud(workout.exercises);
                 const { error } = await supabase
                     .from('scheduled_workouts')
                     .update({
                         local_id: String(workout.id),
                         notes: workout.notes,
-                        exercises: workout.exercises,
+                        exercises: exercisesWithNames,
                         completed: workout.completed || false
                     })
                     .eq('id', firstId);
@@ -673,13 +721,15 @@ export const syncScheduledWorkoutsToSupabase = async (): Promise<{ synced: numbe
                     console.log(`Cleaned up ${duplicateIds.length} duplicate scheduled workouts for "${workout.templateName}" on ${workout.date}`);
                 }
             } else {
+                // Convert exercise IDs to names for cross-device compatibility
+                const exercisesWithNames = await convertExercisesToNamesForCloud(workout.exercises);
                 const { error } = await supabase.from('scheduled_workouts').insert({
                     local_id: String(workout.id),
                     user_id: user.id,
                     template_name: workout.templateName,
                     date: workout.date,
                     notes: workout.notes,
-                    exercises: workout.exercises,
+                    exercises: exercisesWithNames,
                     completed: workout.completed || false
                 });
                 if (error) throw error;
@@ -730,20 +780,26 @@ export const fetchScheduledWorkoutsFromSupabase = async (): Promise<void> => {
         if (!localWorkout) {
             // Add new scheduled workout from cloud
             console.log('Adding cloud scheduled workout locally:', cloudWorkout.template_name, cloudWorkout.date);
+            // Convert exercise names from cloud to local IDs
+            const cloudExercises = cloudWorkout.exercises as { exerciseId: string; exerciseName?: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[];
+            const mappedExercises = await convertExercisesFromCloud(cloudExercises);
             await db.scheduledWorkouts.add({
                 templateId: 0,
                 templateName: cloudWorkout.template_name,
                 date: cloudWorkout.date,
                 notes: cloudWorkout.notes,
-                exercises: cloudWorkout.exercises as { exerciseId: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[],
+                exercises: mappedExercises,
                 completed: cloudWorkout.completed
             });
         } else {
             // Update if cloud has different data
             if (JSON.stringify(cloudWorkout.exercises) !== JSON.stringify(localWorkout.exercises)) {
                 console.log('Updating local scheduled workout from cloud:', cloudWorkout.template_name);
+                // Convert exercise names from cloud to local IDs
+                const cloudExercises = cloudWorkout.exercises as { exerciseId: string; exerciseName?: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[];
+                const mappedExercises = await convertExercisesFromCloud(cloudExercises);
                 await db.scheduledWorkouts.update(localWorkout.id!, {
-                    exercises: cloudWorkout.exercises as { exerciseId: string; instanceId?: string; sets: { targetWeight: number; targetReps: number }[] }[],
+                    exercises: mappedExercises,
                     notes: cloudWorkout.notes,
                     completed: cloudWorkout.completed
                 });
@@ -935,6 +991,13 @@ export const syncDeletionsToSupabase = async (): Promise<{ synced: number; faile
                     .from('scheduled_workouts')
                     .delete()
                     .eq('user_id', user.id)
+                    .eq('local_id', String(item.localId));
+                error = deleteError;
+            } else if (item.type === 'exercise') {
+                // For exercises, we delete by local_id (exercises are shared, no user_id filter)
+                const { error: deleteError } = await supabase
+                    .from('exercises')
+                    .delete()
                     .eq('local_id', String(item.localId));
                 error = deleteError;
             }

@@ -17,7 +17,8 @@ Your job is to ship correct, working software.
 * Ask when unclear
 * Prefer simple solutions
 * No speculative features
-* Always update the version if pushing to github.
+* Always update the version if pushing to github. Make  sure to change the version in package.json and package-lock.json
+
 
 ## Execution
 
