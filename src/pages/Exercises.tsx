@@ -205,9 +205,27 @@ export const Exercises: React.FC = () => {
                             <div>
                                 <h3 className="font-medium">{ex.name}</h3>
                                 <p className="text-xs text-zinc-500">
-                                    {Array.isArray(ex.muscleGroups)
-                                        ? ex.muscleGroups.join(', ')
-                                        : (typeof ex.muscleGroups === 'string' ? ex.muscleGroups : 'Other')}
+                                    {(() => {
+                                        const mg = ex.muscleGroups as string[] | string;
+                                        if (Array.isArray(mg)) {
+                                            return mg.join(', ');
+                                        }
+                                        if (typeof mg === 'string') {
+                                            // Try to parse if it looks like JSON array
+                                            if (mg.startsWith('[')) {
+                                                try {
+                                                    const parsed = JSON.parse(mg);
+                                                    if (Array.isArray(parsed)) {
+                                                        return parsed.join(', ');
+                                                    }
+                                                } catch {
+                                                    // Fall through to return as-is
+                                                }
+                                            }
+                                            return mg;
+                                        }
+                                        return 'Other';
+                                    })()}
                                 </p>
                             </div>
                         </div>
