@@ -207,24 +207,38 @@ export const Exercises: React.FC = () => {
                                 <p className="text-xs text-zinc-500">
                                     {(() => {
                                         const mg = ex.muscleGroups as string[] | string;
-                                        if (Array.isArray(mg)) {
-                                            return mg.join(', ');
-                                        }
-                                        if (typeof mg === 'string') {
-                                            // Try to parse if it looks like JSON array
-                                            if (mg.startsWith('[')) {
-                                                try {
-                                                    const parsed = JSON.parse(mg);
-                                                    if (Array.isArray(parsed)) {
-                                                        return parsed.join(', ');
+
+                                        // Helper to normalize muscle groups
+                                        const normalize = (data: string[] | string): string[] => {
+                                            if (typeof data === 'string') {
+                                                if (data.startsWith('[')) {
+                                                    try {
+                                                        const parsed = JSON.parse(data);
+                                                        return Array.isArray(parsed) ? parsed : [data];
+                                                    } catch {
+                                                        return [data];
                                                     }
-                                                } catch {
-                                                    // Fall through to return as-is
                                                 }
+                                                return [data];
                                             }
-                                            return mg;
-                                        }
-                                        return 'Other';
+                                            if (Array.isArray(data)) {
+                                                // Flatten any nested stringified arrays
+                                                return data.flatMap(item => {
+                                                    if (typeof item === 'string' && item.startsWith('[')) {
+                                                        try {
+                                                            const parsed = JSON.parse(item);
+                                                            return Array.isArray(parsed) ? parsed : [item];
+                                                        } catch {
+                                                            return [item];
+                                                        }
+                                                    }
+                                                    return [item];
+                                                });
+                                            }
+                                            return ['Other'];
+                                        };
+
+                                        return normalize(mg).join(', ');
                                     })()}
                                 </p>
                             </div>
