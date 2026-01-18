@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type WorkoutSet, type Exercise } from '../db';
-import { formatMuscleGroups } from '../utils/exerciseLists';
+import { formatMuscleGroups, normalizeMuscleGroups } from '../utils/exerciseLists';
 import { syncToSupabase } from '../utils/sync';
 import { Plus, Check, Clock, Trash2, X, GripVertical, Search, Timer, Minus } from 'lucide-react';
 import clsx from 'clsx';
@@ -39,7 +39,7 @@ const AddExerciseModal: React.FC<AddExerciseModalProps> = ({ exercises, onAdd, o
 
     const filteredExercises = exercises.filter(ex =>
         ex.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ex.muscleGroups.some(mg => mg.toLowerCase().includes(searchQuery.toLowerCase()))
+        normalizeMuscleGroups(ex.muscleGroups).some(mg => mg.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
     return (

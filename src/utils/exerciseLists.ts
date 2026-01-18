@@ -40,41 +40,44 @@ export const resetToDefaults = () => {
 };
 
 /**
- * Normalize muscle groups for display - handles corrupted data formats
- * Converts stringified arrays, nested arrays, etc. to a clean string
+ * Normalize muscle groups to a clean array - handles corrupted data formats
+ * Returns an array of muscle group strings, safe for iteration
  */
-export const formatMuscleGroups = (muscleGroups: string[] | string | unknown): string => {
-    if (!muscleGroups) return 'Other';
+export const normalizeMuscleGroups = (muscleGroups: string[] | string | unknown): string[] => {
+    if (!muscleGroups) return ['Other'];
 
-    const normalize = (data: string[] | string | unknown): string[] => {
-        if (typeof data === 'string') {
-            if (data.startsWith('[')) {
+    if (typeof muscleGroups === 'string') {
+        if (muscleGroups.startsWith('[')) {
+            try {
+                const parsed = JSON.parse(muscleGroups);
+                return Array.isArray(parsed) ? parsed : [muscleGroups];
+            } catch {
+                return [muscleGroups];
+            }
+        }
+        return [muscleGroups];
+    }
+    if (Array.isArray(muscleGroups)) {
+        return muscleGroups.flatMap(item => {
+            if (typeof item === 'string' && item.startsWith('[')) {
                 try {
-                    const parsed = JSON.parse(data);
-                    return Array.isArray(parsed) ? parsed : [data];
+                    const parsed = JSON.parse(item);
+                    return Array.isArray(parsed) ? parsed : [item];
                 } catch {
-                    return [data];
+                    return [item];
                 }
             }
-            return [data];
-        }
-        if (Array.isArray(data)) {
-            return data.flatMap(item => {
-                if (typeof item === 'string' && item.startsWith('[')) {
-                    try {
-                        const parsed = JSON.parse(item);
-                        return Array.isArray(parsed) ? parsed : [item];
-                    } catch {
-                        return [item];
-                    }
-                }
-                return [item];
-            });
-        }
-        return ['Other'];
-    };
+            return [item];
+        });
+    }
+    return ['Other'];
+};
 
-    return normalize(muscleGroups).join(', ') || 'Other';
+/**
+ * Format muscle groups for display - returns a comma-separated string
+ */
+export const formatMuscleGroups = (muscleGroups: string[] | string | unknown): string => {
+    return normalizeMuscleGroups(muscleGroups).join(', ') || 'Other';
 };
 
 export { DEFAULT_MUSCLE_GROUPS, DEFAULT_EQUIPMENT };

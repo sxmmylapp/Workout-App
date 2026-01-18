@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { ArrowLeft, Edit2, Trophy, TrendingUp, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
-import { getMuscleGroups, getEquipment, formatMuscleGroups } from '../utils/exerciseLists';
+import { getMuscleGroups, getEquipment, formatMuscleGroups, normalizeMuscleGroups } from '../utils/exerciseLists';
 
 export const ExerciseDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -96,7 +96,8 @@ export const ExerciseDetail: React.FC = () => {
     const openEditModal = () => {
         setEditForm({
             name: exercise.name,
-            muscleGroups: exercise.muscleGroups || [],
+            // Normalize muscleGroups to handle corrupted data (stringified arrays, etc.)
+            muscleGroups: normalizeMuscleGroups(exercise.muscleGroups),
             equipment: exercise.equipment,
         });
         setIsEditModalOpen(true);

@@ -48,6 +48,13 @@ export const syncExercises = async (): Promise<{ synced: number; failed: number 
         return { synced: 0, failed: 0 };
     }
 
+    // Get current user for proper scoping
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        console.log('No authenticated user for exercise sync');
+        return { synced: 0, failed: 0 };
+    }
+
     const localExercises = await db.exercises.toArray();
     let synced = 0;
     let failed = 0;
@@ -57,11 +64,12 @@ export const syncExercises = async (): Promise<{ synced: number; failed: number 
             const { error } = await supabase
                 .from('exercises')
                 .upsert({
+                    user_id: user.id,
                     local_id: String(exercise.id),
                     name: exercise.name,
                     muscle_group: exercise.muscleGroups,
                     equipment: exercise.equipment,
-                }, { onConflict: 'local_id' });
+                }, { onConflict: 'user_id,local_id' });
 
             if (error) {
                 console.error('Failed to sync exercise:', exercise.name, error);
@@ -87,11 +95,19 @@ export const fetchExercisesFromSupabase = async (): Promise<void> => {
     const supabase = getSupabase();
     if (!supabase) return;
 
+    // Get current user for proper scoping
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        console.log('No authenticated user for exercise fetch');
+        return;
+    }
+
     console.log('Fetching exercises from cloud...');
 
     const { data, error } = await supabase
         .from('exercises')
         .select('*')
+        .eq('user_id', user.id)  // Only fetch this user's exercises
         .or('deleted.is.null,deleted.eq.false')  // Filter out soft-deleted exercises
         .order('name', { ascending: true });
 
@@ -1067,6 +1083,7 @@ export const syncDeletionsToSupabase = async (): Promise<{ synced: number; faile
                 const { error: deleteError } = await supabase
                     .from('exercises')
                     .delete()
+                    .eq('user_id', user.id)  // Scope to current user
                     .eq('local_id', String(item.localId));
 
                 if (deleteError) {
@@ -1077,6 +1094,7 @@ export const syncDeletionsToSupabase = async (): Promise<{ synced: number; faile
                         const { error: softDeleteError } = await supabase
                             .from('exercises')
                             .update({ deleted: true })
+                            .eq('user_id', user.id)  // Scope to current user
                             .eq('local_id', String(item.localId));
 
                         if (softDeleteError) {

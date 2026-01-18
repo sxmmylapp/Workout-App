@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { Plus, Search, X, Trash2, CheckSquare, Square, ChevronRight } from 'lucide-react';
-import { getMuscleGroups, getEquipment } from '../utils/exerciseLists';
+import { getMuscleGroups, getEquipment, normalizeMuscleGroups } from '../utils/exerciseLists';
 
 export const Exercises: React.FC = () => {
     const navigate = useNavigate();
@@ -19,10 +19,10 @@ export const Exercises: React.FC = () => {
     const MUSCLE_GROUPS = getMuscleGroups();
     const EQUIPMENT = getEquipment();
 
-    // Filter exercises based on search
+    // Filter exercises based on search (using normalizeMuscleGroups for safe iteration)
     const filteredExercises = exercises?.filter(ex =>
         ex.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ex.muscleGroups.some(mg => mg.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        normalizeMuscleGroups(ex.muscleGroups).some(mg => mg.toLowerCase().includes(searchQuery.toLowerCase())) ||
         ex.equipment.toLowerCase().includes(searchQuery.toLowerCase())
     ) || [];
 
