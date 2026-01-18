@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type WorkoutSet, type Exercise } from '../db';
+import { formatMuscleGroups } from '../utils/exerciseLists';
 import { syncToSupabase } from '../utils/sync';
 import { Plus, Check, Clock, Trash2, X, GripVertical, Search, Timer, Minus } from 'lucide-react';
 import clsx from 'clsx';
@@ -82,7 +83,7 @@ const AddExerciseModal: React.FC<AddExerciseModalProps> = ({ exercises, onAdd, o
                         className="w-full p-4 bg-zinc-900 rounded-xl text-left hover:bg-zinc-800 transition-colors flex justify-between items-center"
                     >
                         <span className="font-bold">{ex.name}</span>
-                        <span className="text-xs text-zinc-500">{ex.muscleGroups?.join(', ')}</span>
+                        <span className="text-xs text-zinc-500">{formatMuscleGroups(ex.muscleGroups)}</span>
                     </button>
                 ))}
 
@@ -153,7 +154,7 @@ const SortableExerciseCard: React.FC<SortableExerciseCardProps> = ({
                 </div>
                 <button
                     onClick={() => {
-                        if (confirm(`Remove ${getExerciseName(exerciseId)} from this workout?`)) {
+                        if (confirm(`Remove ${getExerciseName(exerciseId)} from this workout ? `)) {
                             handleDeleteExercise(exId);
                         }
                     }}
@@ -356,7 +357,7 @@ export const ActiveWorkout: React.FC = () => {
 
     const handleAddExercise = async (exerciseId: string) => {
         // Create a new unique instance ID for this exercise in this workout
-        const instanceId = `${exerciseId}-${crypto.randomUUID()}`;
+        const instanceId = `${exerciseId} -${crypto.randomUUID()} `;
 
         await db.sets.add({
             workoutId: String(id),

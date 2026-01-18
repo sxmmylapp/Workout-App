@@ -39,7 +39,7 @@ export const History: React.FC = () => {
     const exercises = useLiveQuery(() => db.exercises.toArray());
 
     const loadFromCloud = async () => {
-        if (loading || hasFetched) return;
+        if (loading) return;
         setLoading(true);
         setError(null);
         try {

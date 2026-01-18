@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, type TemplateExercise, type WorkoutTemplate } from '../db';
+import { formatMuscleGroups } from '../utils/exerciseLists';
 import { X, GripVertical, Minus, Plus, Trash2 } from 'lucide-react';
 import {
     DndContext,
@@ -331,7 +332,7 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ exercises, initi
                                                 <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">{instanceCount}×</span>
                                             )}
                                         </div>
-                                        <span className="text-sm opacity-70">{ex.muscleGroups?.join(', ') || 'No muscle groups'}</span>
+                                        <span className="text-sm opacity-70">{formatMuscleGroups(ex.muscleGroups)}</span>
                                     </button>
                                 );
                             })}

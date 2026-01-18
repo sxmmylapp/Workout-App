@@ -308,19 +308,7 @@ export const Settings: React.FC = () => {
             {/* Exercise Lists Settings */}
             <ExerciseListsSettings />
 
-            <div className="bg-zinc-900 p-6 rounded-xl border border-zinc-800">
-                <h3 className="font-bold text-lg mb-2">Data Management</h3>
-                <button
-                    className="text-red-500 text-sm hover:text-red-400"
-                    onClick={() => {
-                        if (confirm('Are you sure? This will wipe all local data.')) {
-                            // db.delete() logic here if needed
-                        }
-                    }}
-                >
-                    Reset Local Database
-                </button>
-            </div>
+
 
             {/* Version Info */}
             <div className="bg-zinc-900 p-6 rounded-xl border border-zinc-800">

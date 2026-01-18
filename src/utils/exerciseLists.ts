@@ -39,4 +39,42 @@ export const resetToDefaults = () => {
     localStorage.removeItem('equipment');
 };
 
+/**
+ * Normalize muscle groups for display - handles corrupted data formats
+ * Converts stringified arrays, nested arrays, etc. to a clean string
+ */
+export const formatMuscleGroups = (muscleGroups: string[] | string | unknown): string => {
+    if (!muscleGroups) return 'Other';
+
+    const normalize = (data: string[] | string | unknown): string[] => {
+        if (typeof data === 'string') {
+            if (data.startsWith('[')) {
+                try {
+                    const parsed = JSON.parse(data);
+                    return Array.isArray(parsed) ? parsed : [data];
+                } catch {
+                    return [data];
+                }
+            }
+            return [data];
+        }
+        if (Array.isArray(data)) {
+            return data.flatMap(item => {
+                if (typeof item === 'string' && item.startsWith('[')) {
+                    try {
+                        const parsed = JSON.parse(item);
+                        return Array.isArray(parsed) ? parsed : [item];
+                    } catch {
+                        return [item];
+                    }
+                }
+                return [item];
+            });
+        }
+        return ['Other'];
+    };
+
+    return normalize(muscleGroups).join(', ') || 'Other';
+};
+
 export { DEFAULT_MUSCLE_GROUPS, DEFAULT_EQUIPMENT };

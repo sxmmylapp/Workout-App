@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { ArrowLeft, Edit2, Trophy, TrendingUp, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
-import { getMuscleGroups, getEquipment } from '../utils/exerciseLists';
+import { getMuscleGroups, getEquipment, formatMuscleGroups } from '../utils/exerciseLists';
 
 export const ExerciseDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -144,7 +144,7 @@ export const ExerciseDetail: React.FC = () => {
                     </button>
                     <h1 className="text-2xl font-bold">{exercise.name}</h1>
                     <div className="flex items-center gap-2 mt-1">
-                        <span className="text-sm text-zinc-500">{exercise.muscleGroups?.join(', ') || 'No muscle groups'}</span>
+                        <span className="text-sm text-zinc-500">{formatMuscleGroups(exercise.muscleGroups)}</span>
                         <span className="text-zinc-700">•</span>
                         <span className="text-xs bg-zinc-800 px-2 py-1 rounded text-zinc-400">{exercise.equipment}</span>
                     </div>
