@@ -92,6 +92,7 @@ export const fetchExercisesFromSupabase = async (): Promise<void> => {
     const { data, error } = await supabase
         .from('exercises')
         .select('*')
+        .or('deleted.is.null,deleted.eq.false')  // Filter out soft-deleted exercises
         .order('name', { ascending: true });
 
     if (error) {
@@ -1062,12 +1063,36 @@ export const syncDeletionsToSupabase = async (): Promise<{ synced: number; faile
                     .eq('local_id', String(item.localId));
                 error = deleteError;
             } else if (item.type === 'exercise') {
-                // For exercises, we delete by local_id (exercises are shared, no user_id filter)
+                // For exercises, try to delete, but soft-delete if referenced by workout_sets
                 const { error: deleteError } = await supabase
                     .from('exercises')
                     .delete()
                     .eq('local_id', String(item.localId));
-                error = deleteError;
+
+                if (deleteError) {
+                    // Check if it's a foreign key constraint error (exercise has workout history)
+                    if (deleteError.code === '23503') {
+                        console.log(`Exercise ${item.localId} has workout history, soft-deleting instead...`);
+                        // Soft delete by setting deleted = true
+                        const { error: softDeleteError } = await supabase
+                            .from('exercises')
+                            .update({ deleted: true })
+                            .eq('local_id', String(item.localId));
+
+                        if (softDeleteError) {
+                            console.error(`Failed to soft-delete exercise ${item.localId}:`, softDeleteError);
+                            error = softDeleteError;
+                        } else {
+                            console.log(`Soft-deleted exercise ${item.localId}`);
+                            // Success - mark as synced
+                            await db.deletedItems.delete(item.id!);
+                            synced++;
+                            continue; // Skip to next item
+                        }
+                    } else {
+                        error = deleteError;
+                    }
+                }
             }
 
             if (error) {
