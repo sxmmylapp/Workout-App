@@ -1,4 +1,4 @@
-import { db } from '../db';
+import { db, cleanupMuscleGroups } from '../db';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
 
 export interface SupabaseWorkout {
@@ -162,6 +162,9 @@ export const fetchExercisesFromSupabase = async (): Promise<void> => {
     }
 
     console.log(`Fetched exercises: ${added} added, ${updated} updated`);
+
+    // Run cleanup after sync to fix any corrupted muscle groups from cloud
+    await cleanupMuscleGroups();
 };
 
 /**
@@ -924,6 +927,15 @@ export const syncUserSettingsToSupabase = async (): Promise<void> => {
     const restTimerEnabled = localStorage.getItem('restTimerEnabled');
     const restTimerDefault = localStorage.getItem('restTimerDefault');
 
+    // Only sync if we have CUSTOM settings (null means using defaults - don't overwrite cloud)
+    const hasCustomSettings = muscleGroups !== null || equipment !== null ||
+        restTimerEnabled !== null || restTimerDefault !== null;
+
+    if (!hasCustomSettings) {
+        console.log('No custom user settings to sync (using defaults)');
+        return;
+    }
+
     try {
         // Check if settings exist
         const { data: existing } = await supabase
@@ -1139,9 +1151,10 @@ export const fullCloudSync = async (): Promise<void> => {
     // Process deletions first
     await syncDeletionsToSupabase();
 
-    // Sync user settings first
-    await syncUserSettingsToSupabase();
+    // Fetch user settings FIRST (so new devices get cloud settings)
+    // Then sync only if local has custom settings
     await fetchUserSettingsFromSupabase();
+    await syncUserSettingsToSupabase();
 
     // Sync exercises
     await syncExercises();

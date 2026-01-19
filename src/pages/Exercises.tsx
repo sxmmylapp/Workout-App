@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { Plus, Search, X, Trash2, CheckSquare, Square, ChevronRight } from 'lucide-react';
-import { getMuscleGroups, getEquipment, normalizeMuscleGroups } from '../utils/exerciseLists';
+import { getMuscleGroups, getEquipment, normalizeMuscleGroups, formatMuscleGroups } from '../utils/exerciseLists';
 
 export const Exercises: React.FC = () => {
     const navigate = useNavigate();
@@ -11,7 +11,7 @@ export const Exercises: React.FC = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [newExercise, setNewExercise] = useState({ name: '', muscleGroups: [] as string[], equipment: 'Barbell' });
     const [isSelectMode, setIsSelectMode] = useState(false);
-    const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
     const exercises = useLiveQuery(() => db.exercises.toArray());
 
@@ -59,7 +59,7 @@ export const Exercises: React.FC = () => {
         setIsAddModalOpen(false);
     };
 
-    const toggleSelect = (id: string | number) => {
+    const toggleSelect = (id: number) => {
         const newSelected = new Set(selectedIds);
         if (newSelected.has(id)) {
             newSelected.delete(id);
@@ -205,41 +205,7 @@ export const Exercises: React.FC = () => {
                             <div>
                                 <h3 className="font-medium">{ex.name}</h3>
                                 <p className="text-xs text-zinc-500">
-                                    {(() => {
-                                        const mg = ex.muscleGroups as string[] | string;
-
-                                        // Helper to normalize muscle groups
-                                        const normalize = (data: string[] | string): string[] => {
-                                            if (typeof data === 'string') {
-                                                if (data.startsWith('[')) {
-                                                    try {
-                                                        const parsed = JSON.parse(data);
-                                                        return Array.isArray(parsed) ? parsed : [data];
-                                                    } catch {
-                                                        return [data];
-                                                    }
-                                                }
-                                                return [data];
-                                            }
-                                            if (Array.isArray(data)) {
-                                                // Flatten any nested stringified arrays
-                                                return data.flatMap(item => {
-                                                    if (typeof item === 'string' && item.startsWith('[')) {
-                                                        try {
-                                                            const parsed = JSON.parse(item);
-                                                            return Array.isArray(parsed) ? parsed : [item];
-                                                        } catch {
-                                                            return [item];
-                                                        }
-                                                    }
-                                                    return [item];
-                                                });
-                                            }
-                                            return ['Other'];
-                                        };
-
-                                        return normalize(mg).join(', ');
-                                    })()}
+                                    {formatMuscleGroups(ex.muscleGroups)}
                                 </p>
                             </div>
                         </div>
