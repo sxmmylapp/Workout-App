@@ -29,16 +29,27 @@ export const BuildMonitor: React.FC = () => {
             const lines = text.trim().split('\n');
 
             // Find the most recent failure
-            // We iterate backwards to find the latest message
             for (let i = lines.length - 1; i >= 0; i--) {
                 const line = lines[i];
                 if (!line) continue;
                 try {
                     const msg = JSON.parse(line) as NtfyMessage;
-                    // If it has "fail" or "error" in title/message, assume it's a failure
-                    // Or if it's just the latest message on this topic (assuming topic is dedicated)
+
+                    // Netlify sends the webhook payload as a stringified JSON in the 'message' field
+                    try {
+                        const netlifyPayload = JSON.parse(msg.message);
+                        if (netlifyPayload && typeof netlifyPayload === 'object') {
+                            // Enhance the message object with parsed data
+                            msg.title = netlifyPayload.title || 'Build Failed';
+                            msg.message = netlifyPayload.error_message || netlifyPayload.summary || msg.message;
+                            // Store other useful info if needed, or just keep the parsed message
+                        }
+                    } catch {
+                        // If it's not JSON, just use the message as is
+                    }
+
                     setBuildError(msg);
-                    break; // Found the latest one
+                    break;
                 } catch (e) {
                     console.error('Error parsing ntfy message', e);
                 }
