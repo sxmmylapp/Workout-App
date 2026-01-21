@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle, Copy, Check, RefreshCw } from 'lucide-react';
 
 const NTFY_TOPIC = 'sammys-workout-app-builds-x9z2';
-const POLL_INTERVAL = 60000; // Check every minute
 
 interface NtfyMessage {
     id: string;
@@ -15,85 +14,103 @@ interface NtfyMessage {
 
 export const BuildMonitor: React.FC = () => {
     const [buildError, setBuildError] = useState<NtfyMessage | null>(null);
-    const [isVisible, setIsVisible] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [copied, setCopied] = useState(false);
 
-    useEffect(() => {
-        const checkBuildStatus = async () => {
-            try {
-                // Fetch last message from ntfy.sh
-                // We use 'since=1h' to only care about recent failures
-                const response = await fetch(`https://ntfy.sh/${NTFY_TOPIC}/json?since=1h&poll=1`);
+    const checkBuildStatus = async () => {
+        setLoading(true);
+        try {
+            // Fetch last message from ntfy.sh
+            const response = await fetch(`https://ntfy.sh/${NTFY_TOPIC}/json?since=24h&poll=1`);
 
-                if (!response.ok) return;
+            if (!response.ok) return;
 
-                // ntfy returns a stream of JSON objects separated by newlines
-                // For simple polling, we just read the text and parse the lines
-                const text = await response.text();
-                const lines = text.trim().split('\n');
+            const text = await response.text();
+            const lines = text.trim().split('\n');
 
-                for (const line of lines) {
-                    if (!line) continue;
-                    try {
-                        const msg = JSON.parse(line) as NtfyMessage;
-
-                        // Check if it's a build failure message
-                        // Netlify usually sends "Deploy failed" or similar in the title or message
-                        // We'll look for keywords or just show whatever comes to this specific topic
-                        // assuming the user ONLY sends build failures here.
-
-                        // Check if we've already seen this message
-                        const lastSeenId = localStorage.getItem('lastSeenBuildErrorId');
-                        if (msg.id !== lastSeenId) {
-                            setBuildError(msg);
-                            setIsVisible(true);
-                            // Don't auto-dismiss, let user dismiss
-                        }
-                    } catch (e) {
-                        console.error('Error parsing ntfy message', e);
-                    }
+            // Find the most recent failure
+            // We iterate backwards to find the latest message
+            for (let i = lines.length - 1; i >= 0; i--) {
+                const line = lines[i];
+                if (!line) continue;
+                try {
+                    const msg = JSON.parse(line) as NtfyMessage;
+                    // If it has "fail" or "error" in title/message, assume it's a failure
+                    // Or if it's just the latest message on this topic (assuming topic is dedicated)
+                    setBuildError(msg);
+                    break; // Found the latest one
+                } catch (e) {
+                    console.error('Error parsing ntfy message', e);
                 }
-            } catch (e) {
-                console.error('Failed to check build status', e);
             }
-        };
-
-        // Check immediately and then interval
-        checkBuildStatus();
-        const interval = setInterval(checkBuildStatus, POLL_INTERVAL);
-
-        return () => clearInterval(interval);
-    }, []);
-
-    const dismiss = () => {
-        if (buildError) {
-            localStorage.setItem('lastSeenBuildErrorId', buildError.id);
+        } catch (e) {
+            console.error('Failed to check build status', e);
+        } finally {
+            setLoading(false);
         }
-        setIsVisible(false);
     };
 
-    if (!isVisible || !buildError) return null;
+    useEffect(() => {
+        checkBuildStatus();
+    }, []);
+
+    const handleCopy = () => {
+        if (!buildError) return;
+        const textToCopy = JSON.stringify(buildError, null, 2);
+        navigator.clipboard.writeText(textToCopy);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    if (!buildError) {
+        return (
+            <div className="bg-zinc-900 p-6 rounded-xl border border-zinc-800">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                        <h3 className="font-bold text-lg">Build Status</h3>
+                    </div>
+                    <button onClick={checkBuildStatus} className="p-2 hover:bg-zinc-800 rounded-lg">
+                        <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                    </button>
+                </div>
+                <p className="text-zinc-500 text-sm mt-2">No recent build failures detected.</p>
+            </div>
+        );
+    }
 
     return (
-        <div className="fixed bottom-4 right-4 left-4 md:left-auto md:w-96 bg-red-900/90 border border-red-500/50 text-white p-4 rounded-xl shadow-2xl backdrop-blur-md z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
-            <div className="flex items-start gap-3">
-                <div className="p-2 bg-red-500/20 rounded-lg shrink-0">
-                    <AlertTriangle className="w-5 h-5 text-red-400" />
+        <div className="bg-zinc-900 p-6 rounded-xl border border-red-900/50">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    <AlertTriangle size={20} className="text-red-500" />
+                    <h3 className="font-bold text-lg text-red-100">Build Failure Detected</h3>
                 </div>
-                <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-red-100">Build Failed</h3>
-                    <p className="text-sm text-red-200/80 mt-1 break-words">
-                        {buildError.title || buildError.message || 'Unknown error'}
-                    </p>
-                    <p className="text-xs text-red-300/50 mt-2">
-                        {new Date(buildError.time * 1000).toLocaleTimeString()}
-                    </p>
+                <div className="flex gap-2">
+                    <button
+                        onClick={checkBuildStatus}
+                        className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400"
+                        title="Refresh"
+                    >
+                        <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                    </button>
+                    <button
+                        onClick={handleCopy}
+                        className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-lg text-sm transition-colors"
+                    >
+                        {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+                        {copied ? 'Copied' : 'Copy Debug Info'}
+                    </button>
                 </div>
-                <button
-                    onClick={dismiss}
-                    className="p-1 hover:bg-white/10 rounded-lg transition-colors"
-                >
-                    <X className="w-4 h-4 text-white/60" />
-                </button>
+            </div>
+
+            <div className="bg-black/50 rounded-lg p-4 font-mono text-xs text-red-200/80 overflow-x-auto max-h-48 border border-red-900/30">
+                <p className="mb-2 font-bold text-red-400">
+                    {new Date(buildError.time * 1000).toLocaleString()}
+                </p>
+                <p className="whitespace-pre-wrap break-words">
+                    {buildError.message || JSON.stringify(buildError, null, 2)}
+                </p>
             </div>
         </div>
     );

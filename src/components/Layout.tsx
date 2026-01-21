@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { Dumbbell, History, Settings, Plus, CalendarDays, X, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../contexts/AuthContext';
-import { BuildMonitor } from './BuildMonitor';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const location = useLocation();
@@ -19,7 +18,6 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
     return (
         <div className="flex flex-col h-[100dvh] bg-black text-white">
-            <BuildMonitor />
             {/* Syncing indicator */}
             {syncing && (
                 <div className="bg-blue-900/80 text-blue-200 px-4 py-2 text-sm flex items-center gap-2">

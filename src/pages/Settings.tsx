@@ -228,6 +228,8 @@ const ExerciseListsSettings: React.FC = () => {
     );
 };
 
+import { BuildMonitor } from '../components/BuildMonitor';
+
 export const Settings: React.FC = () => {
     const { user, signOut } = useAuth();
     const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'done'>('idle');
@@ -260,6 +262,9 @@ export const Settings: React.FC = () => {
     return (
         <div className="space-y-6">
             <h1 className="text-2xl font-bold">Settings</h1>
+
+            {/* Build Monitor */}
+            <BuildMonitor />
 
             {/* Account Section */}
             <div className="bg-zinc-900 p-6 rounded-xl border border-zinc-800 space-y-4">
