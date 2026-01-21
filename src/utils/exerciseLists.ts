@@ -122,4 +122,65 @@ export const formatMuscleGroups = (muscleGroups: string[] | string | unknown): s
     return normalizeMuscleGroups(muscleGroups).join(', ') || 'Other';
 };
 
+/**
+ * Deduplicate exercises by name (case-insensitive)
+ * Merges sets to the kept exercise and deletes duplicates
+ */
+export const deduplicateExercises = async (db: any) => {
+    const exercises = await db.exercises.toArray();
+    const groups = new Map<string, any[]>();
+    let deletedCount = 0;
+    let remappedSetsCount = 0;
+
+    // 1. Group by normalized name
+    exercises.forEach((ex: any) => {
+        const normalized = ex.name.trim().toLowerCase();
+        if (!groups.has(normalized)) {
+            groups.set(normalized, []);
+        }
+        groups.get(normalized)!.push(ex);
+    });
+
+    // 2. Process duplicates
+    for (const [name, group] of groups) {
+        if (group.length > 1) {
+            console.log(`Found ${group.length} duplicates for "${name}"`);
+
+            // Keep the one with the lowest ID (usually oldest)
+            const [keep, ...remove] = group.sort((a, b) => a.id - b.id);
+
+            for (const duplicate of remove) {
+                // Find all sets pointing to this duplicate
+                const sets = await db.sets.where('exerciseId').equals(String(duplicate.id)).toArray();
+
+                if (sets.length > 0) {
+                    console.log(`Remapping ${sets.length} sets from ${duplicate.name} (${duplicate.id}) to ${keep.name} (${keep.id})`);
+                    // Update sets to point to the kept exercise
+                    for (const set of sets) {
+                        await db.sets.update(set.id, { exerciseId: String(keep.id) });
+                    }
+                    remappedSetsCount += sets.length;
+                }
+
+                // Delete the duplicate exercise
+                await db.exercises.delete(duplicate.id);
+
+                // Track deletion for sync
+                await db.deletedItems.add({
+                    type: 'exercise',
+                    localId: duplicate.id,
+                    name: duplicate.name,
+                    deletedAt: new Date()
+                });
+
+                deletedCount++;
+            }
+        }
+    }
+
+    if (deletedCount > 0) {
+        console.log(`Deduplication complete: Deleted ${deletedCount} exercises, remapped ${remappedSetsCount} sets.`);
+    }
+};
+
 export { DEFAULT_MUSCLE_GROUPS, DEFAULT_EQUIPMENT };
