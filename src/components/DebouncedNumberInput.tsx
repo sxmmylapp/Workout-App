@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface DebouncedNumberInputProps {
     value: number;
@@ -8,13 +8,22 @@ interface DebouncedNumberInputProps {
 
 export const DebouncedNumberInput: React.FC<DebouncedNumberInputProps> = ({ value, onChange, className }) => {
     const [localValue, setLocalValue] = useState(String(value));
+    const isEditing = useRef(false);
 
     // Sync local value when external value changes (e.g., from DB)
+    // Only update if not currently editing to prevent loop
     useEffect(() => {
-        setLocalValue(String(value));
-    }, [value]);
+        if (!isEditing.current && String(value) !== localValue) {
+            setLocalValue(String(value));
+        }
+    }, [value, localValue]);
+
+    const handleFocus = () => {
+        isEditing.current = true;
+    };
 
     const handleBlur = () => {
+        isEditing.current = false;
         const numValue = Number(localValue) || 0;
         if (numValue !== value) {
             onChange(numValue);
@@ -26,6 +35,7 @@ export const DebouncedNumberInput: React.FC<DebouncedNumberInputProps> = ({ valu
             type="number"
             value={localValue}
             onChange={(e) => setLocalValue(e.target.value)}
+            onFocus={handleFocus}
             onBlur={handleBlur}
             className={className}
         />

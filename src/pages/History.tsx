@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
@@ -38,7 +38,7 @@ export const History: React.FC = () => {
     // Exercises for name lookup
     const exercises = useLiveQuery(() => db.exercises.toArray());
 
-    const loadFromCloud = async () => {
+    const loadFromCloud = useCallback(async () => {
         if (loading) return;
         setLoading(true);
         setError(null);
@@ -52,14 +52,14 @@ export const History: React.FC = () => {
             setLoading(false);
             setHasFetched(true);
         }
-    };
+    }, [loading]);
 
     // Fetch from cloud on mount
     useEffect(() => {
         if (isSupabaseConfigured() && !hasFetched) {
             loadFromCloud();
         }
-    }, [hasFetched]);
+    }, [hasFetched, loadFromCloud]);
 
     // Get exercise names for a local workout
     const getLocalExerciseNames = (workoutId: string): string[] => {

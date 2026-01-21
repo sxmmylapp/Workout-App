@@ -1,61 +1,52 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
-import { Plus, Search, X, Trash2, CheckSquare, Square, ChevronRight } from 'lucide-react';
-import { getMuscleGroups, getEquipment, normalizeMuscleGroups, formatMuscleGroups } from '../utils/exerciseLists';
+import { Plus, Search, X, Trash2, CheckSquare, Square, Dumbbell } from 'lucide-react';
+import { normalizeMuscleGroups, fixCorruptedData } from '../utils/exerciseLists';
+import { ExerciseModal } from '../components/ExerciseModal';
+import { ExerciseCard } from '../components/ExerciseCard';
 
 export const Exercises: React.FC = () => {
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [newExercise, setNewExercise] = useState({ name: '', muscleGroups: [] as string[], equipment: 'Barbell' });
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
     const exercises = useLiveQuery(() => db.exercises.toArray());
 
-    // Get dynamic lists on each render
-    const MUSCLE_GROUPS = getMuscleGroups();
-    const EQUIPMENT = getEquipment();
+    // Run one-time data fix on mount
+    useEffect(() => {
+        fixCorruptedData(db).catch(console.error);
+    }, []);
 
-    // Filter exercises based on search (using normalizeMuscleGroups for safe iteration)
+    // Filter exercises based on search
     const filteredExercises = exercises?.filter(ex =>
         ex.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         normalizeMuscleGroups(ex.muscleGroups).some(mg => mg.toLowerCase().includes(searchQuery.toLowerCase())) ||
         ex.equipment.toLowerCase().includes(searchQuery.toLowerCase())
     ) || [];
 
-    const toggleMuscleGroup = (mg: string) => {
-        const current = newExercise.muscleGroups;
-        if (current.includes(mg)) {
-            setNewExercise({ ...newExercise, muscleGroups: current.filter(m => m !== mg) });
-        } else {
-            setNewExercise({ ...newExercise, muscleGroups: [...current, mg] });
-        }
-    };
-
-    const handleAddExercise = async () => {
-        if (!newExercise.name.trim()) return;
-
+    const handleAddExercise = async (data: { name: string; muscleGroups: string[]; equipment: string }) => {
         // Check for duplicate exercise name (case-insensitive)
-        const trimmedName = newExercise.name.trim().toLowerCase();
+        const trimmedName = data.name.trim().toLowerCase();
         const existingExercise = exercises?.find(
             ex => ex.name.toLowerCase() === trimmedName
         );
 
         if (existingExercise) {
+            // TODO: Replace with better UI notification
             alert(`Exercise "${existingExercise.name}" already exists.`);
             return;
         }
 
         await db.exercises.add({
-            name: newExercise.name.trim(),
-            muscleGroups: newExercise.muscleGroups.length > 0 ? newExercise.muscleGroups : ['Chest'],
-            equipment: newExercise.equipment,
+            name: data.name,
+            muscleGroups: data.muscleGroups,
+            equipment: data.equipment,
         });
 
-        setNewExercise({ name: '', muscleGroups: [], equipment: 'Barbell' });
         setIsAddModalOpen(false);
     };
 
@@ -71,6 +62,7 @@ export const Exercises: React.FC = () => {
 
     const handleDeleteSelected = async () => {
         if (selectedIds.size === 0) return;
+        // TODO: Replace with custom modal
         if (!confirm(`Delete ${selectedIds.size} exercise${selectedIds.size > 1 ? 's' : ''}?`)) return;
 
         for (const id of selectedIds) {
@@ -102,214 +94,130 @@ export const Exercises: React.FC = () => {
     };
 
     return (
-        <div className="space-y-4">
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold">Exercises</h1>
+        <div className="space-y-6 pb-24">
+            <div className="flex justify-between items-center pt-2">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
+                    Exercises
+                </h1>
                 <div className="flex items-center gap-2">
                     {isSelectMode ? (
-                        <>
+                        <div className="flex items-center gap-2 bg-zinc-900 p-1.5 rounded-full border border-zinc-800 animate-in slide-in-from-right-4 fade-in duration-200">
                             <button
                                 onClick={selectAll}
-                                className="text-zinc-400 hover:text-white text-sm px-2"
+                                className="text-xs font-medium text-zinc-400 hover:text-white px-3 py-1.5 rounded-full hover:bg-zinc-800 transition-colors"
                             >
                                 All
                             </button>
+                            <div className="w-px h-4 bg-zinc-800"></div>
                             <button
                                 onClick={handleDeleteSelected}
                                 disabled={selectedIds.size === 0}
-                                className="bg-red-600 text-white p-2 rounded-full hover:bg-red-700 disabled:opacity-50"
+                                className="text-red-400 hover:text-red-300 hover:bg-red-900/20 p-2 rounded-full transition-colors disabled:opacity-50"
                             >
-                                <Trash2 size={20} />
+                                <Trash2 size={18} />
                             </button>
                             <button
                                 onClick={exitSelectMode}
-                                className="text-zinc-400 hover:text-white p-2"
+                                className="text-zinc-400 hover:text-white hover:bg-zinc-800 p-2 rounded-full transition-colors"
                             >
-                                <X size={20} />
+                                <X size={18} />
                             </button>
-                        </>
+                        </div>
                     ) : (
-                        <>
-                            <button
-                                onClick={() => setIsSelectMode(true)}
-                                className="text-zinc-400 hover:text-white p-2"
-                            >
-                                <CheckSquare size={20} />
-                            </button>
-                            <button
-                                onClick={() => setIsAddModalOpen(true)}
-                                className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700"
-                            >
-                                <Plus size={20} />
-                            </button>
-                        </>
+                        <button
+                            onClick={() => setIsSelectMode(true)}
+                            className="text-zinc-400 hover:text-white p-2 rounded-full hover:bg-zinc-800/50 transition-colors"
+                        >
+                            <CheckSquare size={22} />
+                        </button>
                     )}
                 </div>
             </div>
 
             {/* Search Bar */}
-            <div className="relative">
-                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search exercises..."
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-10 pr-10 text-sm focus:border-blue-500 outline-none"
-                />
-                {searchQuery && (
-                    <button
-                        onClick={() => setSearchQuery('')}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
-                    >
-                        <X size={18} />
-                    </button>
-                )}
+            <div className="relative group">
+                <div className="absolute inset-0 bg-blue-500/5 rounded-2xl blur-xl group-hover:bg-blue-500/10 transition-all duration-500"></div>
+                <div className="relative">
+                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-hover:text-zinc-400 transition-colors" />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search exercises..."
+                        className="w-full bg-zinc-900/80 backdrop-blur-xl border border-zinc-800/80 rounded-2xl py-4 pl-11 pr-10 text-sm focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 outline-none transition-all shadow-lg shadow-black/20"
+                    />
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                        >
+                            <X size={18} />
+                        </button>
+                    )}
+                </div>
             </div>
-
-            {/* Exercise Count / Selection Info */}
-            <p className="text-xs text-zinc-500">
-                {isSelectMode && selectedIds.size > 0
-                    ? `${selectedIds.size} selected`
-                    : `${filteredExercises.length} exercises`
-                }
-            </p>
 
             {/* Exercise List */}
-            <div className="grid gap-2">
-                {filteredExercises.map((ex) => (
-                    <div
-                        key={ex.id}
-                        onClick={() => {
-                            if (isSelectMode) {
-                                toggleSelect(ex.id!);
-                            } else {
-                                navigate(`/exercises/${ex.id}`);
-                            }
-                        }}
-                        className={`p-4 bg-zinc-900 rounded-xl border flex justify-between items-center transition-colors cursor-pointer hover:bg-zinc-800 ${selectedIds.has(ex.id!)
-                            ? 'border-blue-500 bg-blue-900/20'
-                            : 'border-zinc-800'
-                            }`}
-                    >
-                        <div className="flex items-center gap-3">
-                            {isSelectMode && (
-                                <div className="text-blue-400">
-                                    {selectedIds.has(ex.id!) ? (
-                                        <CheckSquare size={20} />
-                                    ) : (
-                                        <Square size={20} />
-                                    )}
-                                </div>
-                            )}
-                            <div>
-                                <h3 className="font-medium">{ex.name}</h3>
-                                <p className="text-xs text-zinc-500">
-                                    {formatMuscleGroups(ex.muscleGroups)}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs bg-zinc-800 px-2 py-1 rounded text-zinc-400">{ex.equipment}</span>
-                            {!isSelectMode && <ChevronRight size={16} className="text-zinc-600" />}
-                        </div>
-                    </div>
-                ))}
-
-                {filteredExercises.length === 0 && (
-                    <div className="text-center py-8">
-                        <p className="text-zinc-500">No exercises found</p>
-                        {searchQuery && (
-                            <button
-                                onClick={() => {
-                                    setNewExercise({ ...newExercise, name: searchQuery });
-                                    setIsAddModalOpen(true);
-                                }}
-                                className="text-blue-400 text-sm mt-2"
-                            >
-                                + Add "{searchQuery}" as new exercise
-                            </button>
-                        )}
-                    </div>
+            <div className="space-y-3">
+                {filteredExercises.length > 0 && (
+                    <p className="text-xs font-medium text-zinc-500 px-1">
+                        {isSelectMode && selectedIds.size > 0
+                            ? `${selectedIds.size} selected`
+                            : `${filteredExercises.length} exercises`
+                        }
+                    </p>
                 )}
+
+                <div className="grid gap-3">
+                    {filteredExercises.map((ex) => (
+                        <ExerciseCard
+                            key={ex.id}
+                            exercise={ex}
+                            isSelectMode={isSelectMode}
+                            isSelected={selectedIds.has(ex.id!)}
+                            onToggleSelect={toggleSelect}
+                            onClick={() => navigate(`/exercises/${ex.id}`)}
+                        />
+                    ))}
+
+                    {filteredExercises.length === 0 && (
+                        <div className="flex flex-col items-center justify-center py-16 text-center">
+                            <div className="bg-zinc-900/50 p-4 rounded-full mb-4">
+                                <Dumbbell size={32} className="text-zinc-600" />
+                            </div>
+                            <p className="text-zinc-400 font-medium mb-1">No exercises found</p>
+                            <p className="text-sm text-zinc-600 mb-6">Try searching for something else</p>
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setIsAddModalOpen(true)}
+                                    className="text-blue-400 text-sm font-medium hover:text-blue-300 transition-colors"
+                                >
+                                    + Create "{searchQuery}"
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Add Exercise Modal */}
-            {isAddModalOpen && (
-                <div className="fixed inset-0 bg-black/90 z-50 p-4 flex items-center justify-center animate-in fade-in duration-200">
-                    <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-sm border border-zinc-800">
-                        <h2 className="text-xl font-bold mb-4">Add Exercise</h2>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm text-zinc-400 mb-1">Exercise Name</label>
-                                <input
-                                    type="text"
-                                    value={newExercise.name}
-                                    onChange={(e) => setNewExercise({ ...newExercise, name: e.target.value })}
-                                    placeholder="e.g., Incline Dumbbell Press"
-                                    className="w-full bg-zinc-800 p-3 rounded-lg border border-zinc-700 focus:border-blue-500 outline-none"
-                                    autoFocus
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm text-zinc-400 mb-2">Muscle Groups</label>
-                                <div className="flex flex-wrap gap-2">
-                                    {MUSCLE_GROUPS.map(mg => (
-                                        <button
-                                            key={mg}
-                                            type="button"
-                                            onClick={() => toggleMuscleGroup(mg)}
-                                            className={`px-3 py-1 rounded-full text-sm transition-colors ${newExercise.muscleGroups.includes(mg)
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                                                }`}
-                                        >
-                                            {mg}
-                                        </button>
-                                    ))}
-                                </div>
-                                {newExercise.muscleGroups.length === 0 && (
-                                    <p className="text-xs text-zinc-500 mt-1">Select at least one muscle group</p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label className="block text-sm text-zinc-400 mb-1">Equipment</label>
-                                <select
-                                    value={newExercise.equipment}
-                                    onChange={(e) => setNewExercise({ ...newExercise, equipment: e.target.value })}
-                                    className="w-full bg-zinc-800 p-3 rounded-lg border border-zinc-700 focus:border-blue-500 outline-none"
-                                >
-                                    {EQUIPMENT.map(eq => (
-                                        <option key={eq} value={eq}>{eq}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3 mt-6">
-                            <button
-                                onClick={() => {
-                                    setNewExercise({ name: '', muscleGroups: [], equipment: 'Barbell' });
-                                    setIsAddModalOpen(false);
-                                }}
-                                className="flex-1 py-3 rounded-lg bg-zinc-800 text-zinc-400 font-bold hover:bg-zinc-700"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleAddExercise}
-                                disabled={!newExercise.name.trim()}
-                                className="flex-1 py-3 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50"
-                            >
-                                Add
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            {/* Floating Action Button */}
+            {!isSelectMode && (
+                <button
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="fixed bottom-24 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-900/40 flex items-center justify-center hover:bg-blue-500 hover:scale-105 active:scale-95 transition-all duration-200 z-40"
+                >
+                    <Plus size={28} />
+                </button>
             )}
+
+            <ExerciseModal
+                isOpen={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                onSave={handleAddExercise}
+                title="New Exercise"
+                saveLabel="Create Exercise"
+                initialData={searchQuery ? { name: searchQuery, muscleGroups: [], equipment: 'Barbell' } : undefined}
+            />
         </div>
     );
 };

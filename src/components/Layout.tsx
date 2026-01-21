@@ -1,10 +1,12 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Dumbbell, History, Settings, Plus, CalendarDays } from 'lucide-react';
+import { Dumbbell, History, Settings, Plus, CalendarDays, X, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
+import { useAuth } from '../contexts/AuthContext';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const location = useLocation();
+    const { syncing, syncError, clearSyncError } = useAuth();
 
     const navItems = [
         { icon: History, label: 'History', path: '/history' },
@@ -16,6 +18,24 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
     return (
         <div className="flex flex-col h-[100dvh] bg-black text-white">
+            {/* Syncing indicator */}
+            {syncing && (
+                <div className="bg-blue-900/80 text-blue-200 px-4 py-2 text-sm flex items-center gap-2">
+                    <RefreshCw size={14} className="animate-spin" />
+                    <span>Syncing...</span>
+                </div>
+            )}
+
+            {/* Sync error banner */}
+            {syncError && (
+                <div className="bg-red-900/80 text-red-200 px-4 py-2 text-sm flex items-center justify-between">
+                    <span>Sync failed: {syncError}</span>
+                    <button onClick={clearSyncError} className="p-1 hover:bg-red-800 rounded">
+                        <X size={14} />
+                    </button>
+                </div>
+            )}
+
             <main className="flex-1 overflow-y-auto p-4 pb-32">
                 {children}
             </main>

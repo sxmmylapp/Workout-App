@@ -17,8 +17,8 @@ export const Templates: React.FC = () => {
         new Map(exercises?.map(e => [String(e.id), e.name]) || [])
         , [exercises]);
 
-    const getExerciseName = (exerciseId: string) => exerciseNameMap.get(exerciseId) || 'Unknown';
-
+    const getExerciseName = (exerciseId: string, exerciseName?: string) =>
+        exerciseNameMap.get(exerciseId) || exerciseName || 'Unknown';
 
 
 
@@ -65,7 +65,7 @@ export const Templates: React.FC = () => {
                             </div>
 
                             <div className="text-sm text-zinc-400">
-                                {template.exercises.map(e => getExerciseName(e.exerciseId)).join(', ')}
+                                {template.exercises.map(e => getExerciseName(e.exerciseId, e.exerciseName)).join(', ')}
                             </div>
                         </div>
                     </div>

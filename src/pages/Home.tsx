@@ -28,7 +28,8 @@ export const Home: React.FC = () => {
         new Map(exercises?.map(e => [String(e.id), e.name]) || [])
         , [exercises]);
 
-    const getExerciseName = (exerciseId: string) => exerciseNameMap.get(exerciseId) || 'Unknown';
+    const getExerciseName = (exerciseId: string, exerciseName?: string) =>
+        exerciseNameMap.get(exerciseId) || exerciseName || 'Unknown';
 
     const startNewWorkout = async () => {
         const id = await db.workouts.add({
@@ -136,7 +137,7 @@ export const Home: React.FC = () => {
                                         </p>
                                     )}
                                     <p className="text-sm text-zinc-500 mt-1">
-                                        {scheduled.exercises?.map(e => getExerciseName(e.exerciseId)).slice(0, 3).join(', ') || 'No exercises'}
+                                        {scheduled.exercises?.map(e => getExerciseName(e.exerciseId, e.exerciseName)).slice(0, 3).join(', ') || 'No exercises'}
                                     </p>
                                 </div>
                                 <div className="bg-green-600 p-3 rounded-full group-hover:scale-110 transition-transform">

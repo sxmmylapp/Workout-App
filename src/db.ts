@@ -37,6 +37,7 @@ export interface TemplateSet {
 
 export interface TemplateExercise {
     exerciseId: string;
+    exerciseName?: string; // Stored for fallback if exercise is deleted
     instanceId?: string; // Unique ID for this instance of the exercise in the list
     sets: TemplateSet[];
 }

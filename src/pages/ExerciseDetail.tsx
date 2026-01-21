@@ -4,20 +4,16 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { ArrowLeft, Edit2, Trophy, TrendingUp, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
-import { getMuscleGroups, getEquipment, formatMuscleGroups, normalizeMuscleGroups } from '../utils/exerciseLists';
+import { formatMuscleGroups, normalizeMuscleGroups } from '../utils/exerciseLists';
+import { ExerciseModal } from '../components/ExerciseModal';
 
 export const ExerciseDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editForm, setEditForm] = useState({ name: '', muscleGroups: [] as string[], equipment: '' });
 
     const exercise = useLiveQuery(() => db.exercises.get(Number(id)), [id]);
     const exercises = useLiveQuery(() => db.exercises.toArray()); // For duplicate check
-
-    // Get dynamic lists
-    const MUSCLE_GROUPS = getMuscleGroups();
-    const EQUIPMENT = getEquipment();
 
     // Get all sets for this exercise
     const sets = useLiveQuery(async () => {
@@ -93,30 +89,9 @@ export const ExerciseDetail: React.FC = () => {
 
     const history = getHistory();
 
-    const openEditModal = () => {
-        setEditForm({
-            name: exercise.name,
-            // Normalize muscleGroups to handle corrupted data (stringified arrays, etc.)
-            muscleGroups: normalizeMuscleGroups(exercise.muscleGroups),
-            equipment: exercise.equipment,
-        });
-        setIsEditModalOpen(true);
-    };
-
-    const toggleMuscleGroup = (mg: string) => {
-        const current = editForm.muscleGroups;
-        if (current.includes(mg)) {
-            setEditForm({ ...editForm, muscleGroups: current.filter(m => m !== mg) });
-        } else {
-            setEditForm({ ...editForm, muscleGroups: [...current, mg] });
-        }
-    };
-
-    const handleSaveEdit = async () => {
-        if (!editForm.name.trim()) return;
-
+    const handleSaveEdit = async (data: { name: string; muscleGroups: string[]; equipment: string }) => {
         // Check for duplicate exercise name (case-insensitive), excluding current exercise
-        const trimmedName = editForm.name.trim().toLowerCase();
+        const trimmedName = data.name.trim().toLowerCase();
         const existingExercise = exercises?.find(
             ex => ex.name.toLowerCase() === trimmedName && ex.id !== Number(id)
         );
@@ -127,9 +102,9 @@ export const ExerciseDetail: React.FC = () => {
         }
 
         await db.exercises.update(Number(id), {
-            name: editForm.name.trim(),
-            muscleGroups: editForm.muscleGroups.length > 0 ? editForm.muscleGroups : ['Chest'],
-            equipment: editForm.equipment,
+            name: data.name,
+            muscleGroups: data.muscleGroups,
+            equipment: data.equipment,
         });
 
         setIsEditModalOpen(false);
@@ -140,19 +115,21 @@ export const ExerciseDetail: React.FC = () => {
             {/* Header */}
             <div className="flex justify-between items-start">
                 <div>
-                    <button onClick={() => navigate('/exercises')} className="text-zinc-400 flex items-center gap-1 text-sm mb-2">
+                    <button onClick={() => navigate('/exercises')} className="text-zinc-400 hover:text-white flex items-center gap-1 text-sm mb-4 transition-colors">
                         <ArrowLeft size={16} /> Exercises
                     </button>
-                    <h1 className="text-2xl font-bold">{exercise.name}</h1>
-                    <div className="flex items-center gap-2 mt-1">
-                        <span className="text-sm text-zinc-500">{formatMuscleGroups(exercise.muscleGroups)}</span>
-                        <span className="text-zinc-700">•</span>
-                        <span className="text-xs bg-zinc-800 px-2 py-1 rounded text-zinc-400">{exercise.equipment}</span>
+                    <h1 className="text-3xl font-bold text-white mb-2">{exercise.name}</h1>
+                    <div className="flex items-center gap-3">
+                        <span className="text-sm text-zinc-400 font-medium">{formatMuscleGroups(exercise.muscleGroups)}</span>
+                        <span className="w-1 h-1 rounded-full bg-zinc-700"></span>
+                        <span className="text-xs bg-zinc-800/80 border border-zinc-700/50 px-2.5 py-1 rounded-md text-zinc-300 uppercase tracking-wider font-bold">
+                            {exercise.equipment}
+                        </span>
                     </div>
                 </div>
                 <button
-                    onClick={openEditModal}
-                    className="text-zinc-400 hover:text-white p-2"
+                    onClick={() => setIsEditModalOpen(true)}
+                    className="text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 p-2.5 rounded-xl border border-zinc-800 transition-all"
                 >
                     <Edit2 size={20} />
                 </button>
@@ -160,39 +137,42 @@ export const ExerciseDetail: React.FC = () => {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-2 gap-3">
-                <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
-                    <div className="flex items-center gap-2 text-yellow-500 mb-1">
-                        <Trophy size={16} />
-                        <span className="text-xs uppercase font-bold">Personal Record</span>
+                <div className="bg-zinc-900/50 rounded-2xl p-5 border border-zinc-800/50">
+                    <div className="flex items-center gap-2 text-yellow-500 mb-2">
+                        <Trophy size={18} />
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-500">Personal Record</span>
                     </div>
-                    <p className="text-2xl font-bold">
+                    <p className="text-2xl font-bold text-white">
                         {stats.pr ? `${stats.pr} lbs` : '—'}
                     </p>
                 </div>
 
-                <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
-                    <div className="flex items-center gap-2 text-blue-500 mb-1">
-                        <TrendingUp size={16} />
-                        <span className="text-xs uppercase font-bold">Total Volume</span>
+                <div className="bg-zinc-900/50 rounded-2xl p-5 border border-zinc-800/50">
+                    <div className="flex items-center gap-2 text-blue-500 mb-2">
+                        <TrendingUp size={18} />
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-500">Total Volume</span>
                     </div>
-                    <p className="text-2xl font-bold">
-                        {stats.totalVolume > 0 ? `${stats.totalVolume.toLocaleString()} lbs` : '—'}
+                    <p className="text-2xl font-bold text-white">
+                        {stats.totalVolume > 0 ? `${(stats.totalVolume / 1000).toFixed(1)}k lbs` : '—'}
                     </p>
                 </div>
 
-                <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
-                    <div className="flex items-center gap-2 text-green-500 mb-1">
-                        <span className="text-xs uppercase font-bold">Total Sets</span>
+                <div className="bg-zinc-900/50 rounded-2xl p-5 border border-zinc-800/50">
+                    <div className="flex items-center gap-2 text-green-500 mb-2">
+                        <div className="w-4 h-4 rounded border-2 border-green-500 flex items-center justify-center">
+                            <div className="w-2 h-2 bg-green-500 rounded-[1px]"></div>
+                        </div>
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-500">Total Sets</span>
                     </div>
-                    <p className="text-2xl font-bold">{stats.totalSets}</p>
+                    <p className="text-2xl font-bold text-white">{stats.totalSets}</p>
                 </div>
 
-                <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
-                    <div className="flex items-center gap-2 text-purple-500 mb-1">
-                        <Calendar size={16} />
-                        <span className="text-xs uppercase font-bold">Last Used</span>
+                <div className="bg-zinc-900/50 rounded-2xl p-5 border border-zinc-800/50">
+                    <div className="flex items-center gap-2 text-purple-500 mb-2">
+                        <Calendar size={18} />
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-500">Last Used</span>
                     </div>
-                    <p className="text-lg font-bold">
+                    <p className="text-xl font-bold text-white">
                         {stats.lastUsed ? format(new Date(stats.lastUsed), 'MMM d') : '—'}
                     </p>
                 </div>
@@ -200,109 +180,60 @@ export const ExerciseDetail: React.FC = () => {
 
             {/* History */}
             <div>
-                <h2 className="text-lg font-bold mb-3">Recent History</h2>
+                <h2 className="text-lg font-bold mb-4 text-white">Recent History</h2>
                 {history.length === 0 ? (
-                    <p className="text-zinc-500 text-center py-4">No workout history yet</p>
+                    <div className="text-center py-12 bg-zinc-900/30 rounded-2xl border border-zinc-800/30 border-dashed">
+                        <p className="text-zinc-500">No workout history yet</p>
+                    </div>
                 ) : (
                     <div className="space-y-3">
                         {history.map((entry, idx) => (
-                            <div key={idx} className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="font-medium">{entry.workoutName}</span>
-                                    <span className="text-xs text-zinc-500">
+                            <div key={idx} className="bg-zinc-900/50 rounded-2xl p-5 border border-zinc-800/50">
+                                <div className="flex justify-between items-center mb-4 pb-3 border-b border-zinc-800/50">
+                                    <span className="font-semibold text-white">{entry.workoutName}</span>
+                                    <span className="text-xs font-medium text-zinc-500 bg-zinc-900 px-2 py-1 rounded-md">
                                         {format(new Date(entry.date), 'MMM d, yyyy')}
                                     </span>
                                 </div>
-                                <div className="grid grid-cols-3 gap-2 text-xs text-zinc-500 mb-1 uppercase font-bold">
+                                <div className="grid grid-cols-3 gap-4 text-[10px] uppercase tracking-wider font-bold text-zinc-600 mb-2 px-1">
                                     <div>Set</div>
                                     <div>Weight</div>
                                     <div>Reps</div>
                                 </div>
-                                {entry.sets
-                                    .sort((a, b) => a.setNumber - b.setNumber)
-                                    .map((set, setIdx) => (
-                                        <div key={setIdx} className="grid grid-cols-3 gap-2 text-sm py-1">
-                                            <div className="text-zinc-400">{set.setNumber}</div>
-                                            <div>{set.weight} lbs</div>
-                                            <div>{set.reps}</div>
-                                        </div>
-                                    ))
-                                }
+                                <div className="space-y-1">
+                                    {entry.sets
+                                        .sort((a, b) => a.setNumber - b.setNumber)
+                                        .map((set, setIdx) => (
+                                            <div key={setIdx} className="grid grid-cols-3 gap-4 text-sm py-2 px-1 hover:bg-zinc-800/50 rounded-lg transition-colors">
+                                                <div className="text-zinc-400 font-medium flex items-center gap-2">
+                                                    <span className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center text-xs">
+                                                        {set.setNumber}
+                                                    </span>
+                                                </div>
+                                                <div className="font-medium text-zinc-200">{set.weight} <span className="text-zinc-600 text-xs font-normal">lbs</span></div>
+                                                <div className="font-medium text-zinc-200">{set.reps}</div>
+                                            </div>
+                                        ))
+                                    }
+                                </div>
                             </div>
                         ))}
                     </div>
                 )}
             </div>
 
-            {/* Edit Modal */}
-            {isEditModalOpen && (
-                <div className="fixed inset-0 bg-black/90 z-50 p-4 flex items-center justify-center animate-in fade-in duration-200">
-                    <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-sm border border-zinc-800">
-                        <h2 className="text-xl font-bold mb-4">Edit Exercise</h2>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm text-zinc-400 mb-1">Exercise Name</label>
-                                <input
-                                    type="text"
-                                    value={editForm.name}
-                                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                                    className="w-full bg-zinc-800 p-3 rounded-lg border border-zinc-700 focus:border-blue-500 outline-none"
-                                    autoFocus
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm text-zinc-400 mb-2">Muscle Groups</label>
-                                <div className="flex flex-wrap gap-2">
-                                    {MUSCLE_GROUPS.map(mg => (
-                                        <button
-                                            key={mg}
-                                            type="button"
-                                            onClick={() => toggleMuscleGroup(mg)}
-                                            className={`px-3 py-1 rounded-full text-sm transition-colors ${editForm.muscleGroups.includes(mg)
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                                                }`}
-                                        >
-                                            {mg}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm text-zinc-400 mb-1">Equipment</label>
-                                <select
-                                    value={editForm.equipment}
-                                    onChange={(e) => setEditForm({ ...editForm, equipment: e.target.value })}
-                                    className="w-full bg-zinc-800 p-3 rounded-lg border border-zinc-700 focus:border-blue-500 outline-none"
-                                >
-                                    {EQUIPMENT.map(eq => (
-                                        <option key={eq} value={eq}>{eq}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3 mt-6">
-                            <button
-                                onClick={() => setIsEditModalOpen(false)}
-                                className="flex-1 py-3 rounded-lg bg-zinc-800 text-zinc-400 font-bold hover:bg-zinc-700"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSaveEdit}
-                                disabled={!editForm.name.trim()}
-                                className="flex-1 py-3 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50"
-                            >
-                                Save
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ExerciseModal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                onSave={handleSaveEdit}
+                title="Edit Exercise"
+                saveLabel="Save Changes"
+                initialData={{
+                    name: exercise.name,
+                    muscleGroups: normalizeMuscleGroups(exercise.muscleGroups),
+                    equipment: exercise.equipment
+                }}
+            />
         </div>
     );
 };

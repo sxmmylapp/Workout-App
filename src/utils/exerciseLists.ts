@@ -46,31 +46,60 @@ export const resetToDefaults = () => {
 export const normalizeMuscleGroups = (muscleGroups: string[] | string | unknown): string[] => {
     if (!muscleGroups) return ['Other'];
 
-    if (typeof muscleGroups === 'string') {
-        if (muscleGroups.startsWith('[')) {
-            try {
-                const parsed = JSON.parse(muscleGroups);
-                return Array.isArray(parsed) ? parsed : [muscleGroups];
-            } catch {
-                return [muscleGroups];
-            }
-        }
-        return [muscleGroups];
-    }
-    if (Array.isArray(muscleGroups)) {
-        return muscleGroups.flatMap(item => {
-            if (typeof item === 'string' && item.startsWith('[')) {
+    // Helper to recursively parse JSON strings
+    const parseDeep = (val: any): any => {
+        if (typeof val === 'string') {
+            // Check if it looks like a JSON array
+            if (val.trim().startsWith('[') && val.trim().endsWith(']')) {
                 try {
-                    const parsed = JSON.parse(item);
-                    return Array.isArray(parsed) ? parsed : [item];
+                    const parsed = JSON.parse(val);
+                    return parseDeep(parsed);
                 } catch {
-                    return [item];
+                    return val;
                 }
             }
-            return [item];
-        });
+            // Handle double-escaped quotes if any (e.g. "[\"Chest\"]")
+            return val.replace(/^"|"$/g, '');
+        }
+        if (Array.isArray(val)) {
+            return val.flatMap(parseDeep);
+        }
+        return val;
+    };
+
+    const result = parseDeep(muscleGroups);
+
+    // Ensure we have a flat array of strings
+    if (Array.isArray(result)) {
+        const flat = result.flat().filter(item => typeof item === 'string' && item.length > 0);
+        return flat.length > 0 ? [...new Set(flat)] : ['Other']; // Deduplicate
     }
-    return ['Other'];
+
+    return typeof result === 'string' ? [result] : ['Other'];
+};
+
+/**
+ * One-time migration helper to clean up database
+ */
+export const fixCorruptedData = async (db: any) => {
+    const exercises = await db.exercises.toArray();
+    let fixedCount = 0;
+
+    for (const ex of exercises) {
+        const normalized = normalizeMuscleGroups(ex.muscleGroups);
+        // Check if data actually changed (simple string comparison of sorted arrays)
+        const currentStr = JSON.stringify(Array.isArray(ex.muscleGroups) ? ex.muscleGroups.sort() : ex.muscleGroups);
+        const newStr = JSON.stringify(normalized.sort());
+
+        if (currentStr !== newStr) {
+            await db.exercises.update(ex.id, { muscleGroups: normalized });
+            fixedCount++;
+        }
+    }
+
+    if (fixedCount > 0) {
+        console.log(`Fixed corrupted muscle groups for ${fixedCount} exercises.`);
+    }
 };
 
 /**

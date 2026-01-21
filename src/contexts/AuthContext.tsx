@@ -7,6 +7,9 @@ interface AuthContextType {
     user: User | null;
     session: Session | null;
     loading: boolean;
+    syncing: boolean;
+    syncError: string | null;
+    clearSyncError: () => void;
     signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
     signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
     signOut: () => Promise<void>;
@@ -27,6 +30,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(() => !!getSupabase());
+    const [syncing, setSyncing] = useState(false);
+    const [syncError, setSyncError] = useState<string | null>(null);
+
+    const clearSyncError = () => setSyncError(null);
+
+    const performSync = async () => {
+        setSyncing(true);
+        setSyncError(null);
+        try {
+            await fullCloudSync();
+        } catch (e) {
+            console.error('Sync failed:', e);
+            setSyncError(e instanceof Error ? e.message : 'Sync failed');
+        } finally {
+            setSyncing(false);
+        }
+    };
 
     useEffect(() => {
         const supabase = getSupabase();
@@ -42,7 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             // Sync data from cloud on initial session restore
             if (session?.user) {
-                fullCloudSync().catch(console.error);
+                performSync();
             }
         });
 
@@ -54,7 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             // Sync data from cloud on sign in
             if (event === 'SIGNED_IN' && session?.user) {
-                fullCloudSync().catch(console.error);
+                performSync();
             }
         });
 
@@ -87,7 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     return (
-        <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut }}>
+        <AuthContext.Provider value={{ user, session, loading, syncing, syncError, clearSyncError, signIn, signUp, signOut }}>
             {children}
         </AuthContext.Provider>
     );
