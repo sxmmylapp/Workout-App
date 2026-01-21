@@ -49,17 +49,30 @@ export const normalizeMuscleGroups = (muscleGroups: string[] | string | unknown)
     // Helper to recursively parse JSON strings
     const parseDeep = (val: any): any => {
         if (typeof val === 'string') {
+            const trimmed = val.trim();
             // Check if it looks like a JSON array
-            if (val.trim().startsWith('[') && val.trim().endsWith(']')) {
+            if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
                 try {
-                    const parsed = JSON.parse(val);
+                    const parsed = JSON.parse(trimmed);
                     return parseDeep(parsed);
                 } catch {
-                    return val;
+                    // Try unescaping quotes (handle \" -> ")
+                    try {
+                        const unescaped = trimmed.replace(/\\"/g, '"');
+                        const parsed = JSON.parse(unescaped);
+                        return parseDeep(parsed);
+                    } catch {
+                        return val;
+                    }
                 }
             }
             // Handle double-escaped quotes if any (e.g. "[\"Chest\"]")
-            return val.replace(/^"|"$/g, '');
+            // Also handle cases where the string itself is quoted like '"Chest"'
+            const unquoted = val.replace(/^"|"$/g, '');
+            if (unquoted !== val) {
+                return parseDeep(unquoted);
+            }
+            return val;
         }
         if (Array.isArray(val)) {
             return val.flatMap(parseDeep);
