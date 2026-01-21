@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { Plus, Search, X, Trash2, CheckSquare, Square, Dumbbell } from 'lucide-react';
-import { normalizeMuscleGroups, fixCorruptedData } from '../utils/exerciseLists';
+import { normalizeMuscleGroups, fixCorruptedData, deduplicateExercises } from '../utils/exerciseLists';
 import { ExerciseModal } from '../components/ExerciseModal';
 import { ExerciseCard } from '../components/ExerciseCard';
 
@@ -16,9 +16,13 @@ export const Exercises: React.FC = () => {
 
     const exercises = useLiveQuery(() => db.exercises.toArray());
 
-    // Run one-time data fix on mount
+    // Run one-time data fix and deduplication on mount
     useEffect(() => {
-        fixCorruptedData(db).catch(console.error);
+        const runMigrations = async () => {
+            await fixCorruptedData(db);
+            await deduplicateExercises(db);
+        };
+        runMigrations().catch(console.error);
     }, []);
 
     // Filter exercises based on search
