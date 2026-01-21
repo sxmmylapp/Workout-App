@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
-import { Plus, Search, X, Trash2, CheckSquare, Square, Dumbbell } from 'lucide-react';
+import { Plus, Search, X, Trash2, CheckSquare, Dumbbell } from 'lucide-react';
 import { normalizeMuscleGroups, fixCorruptedData, deduplicateExercises } from '../utils/exerciseLists';
 import { ExerciseModal } from '../components/ExerciseModal';
 import { ExerciseCard } from '../components/ExerciseCard';
