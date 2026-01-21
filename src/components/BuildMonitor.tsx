@@ -35,6 +35,17 @@ export const BuildMonitor: React.FC = () => {
                 try {
                     const msg = JSON.parse(line) as NtfyMessage;
 
+                    // Check if this failure happened AFTER the current build was created
+                    const buildTime = new Date(__BUILD_DATE__).getTime();
+                    const failureTime = msg.time * 1000; // ntfy uses seconds
+
+                    if (failureTime <= buildTime) {
+                        // This failure is older than or equal to the current build
+                        // So we are running a version that was built AFTER this failure
+                        // (or it's the same build, but usually build time is slightly before deploy time)
+                        continue;
+                    }
+
                     // Netlify sends the webhook payload as a stringified JSON in the 'message' field
                     try {
                         const netlifyPayload = JSON.parse(msg.message);
